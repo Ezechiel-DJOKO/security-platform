@@ -5,7 +5,7 @@
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  
 }
 
 generator client {
@@ -13,40 +13,124 @@ generator client {
 }
 
 // ====================== ENUMS ======================
-enum RoleUtilisateur { ADMIN, ANALYSTE, RESPONSABLE_SECURITE, AUDITEUR }
-enum TypeActif { SERVEUR, WORKSTATION, FIREWALL, ROUTER, APPLICATION, BDD, CLOUD, AUTRE }
-enum NiveauCriticite { BAS, MOYEN, ELEVE, CRITIQUE }
-enum Severite { LOW, MEDIUM, HIGH, CRITICAL }
-enum StatutVulnerabilite { OUVERTE, EN_COURS, CORRIGEE, IGNORE, RISQUE_ACCEPTE, VERIFIEE }
-enum StatutScan { PLANIFIE, EN_COURS, TERMINE, ANNULE, ECHEC }
-enum TypeScan { VULNERABILITE, COMPLIANCE, PENETRATION, CONFIGURATION }
-enum OutilScan { NESSUS, OPENVAS, QUALYS, BURP_SUITE, TRIVY, ZAP, MANUAL }
-enum FormatRapport { PDF, JSON, CSV, HTML, MARKDOWN }
-enum Priorite { BASSE, MOYENNE, HAUTE, CRITIQUE }
-enum StatutPlan { A_FAIRE, EN_COURS, TERMINE, EN_RETARD, ANNULE, VERIFIE }
-enum StatutConformite { CONFORME, NON_CONFORME, PARTIELLEMENT, NON_EVALUE }
+enum RoleUtilisateur { 
+ ADMIN
+ SUPERVISEUR
+ AUDITEUR 
+}
+
+enum TypeActif { 
+ SERVEUR
+ WORKSTATION
+ FIREWALL
+ ROUTER
+ APPLICATION
+ BDD
+ CLOUD
+ AUTRE 
+}
+
+enum NiveauCriticite { 
+ BAS
+ MOYEN
+ ELEVE
+ CRITIQUE 
+}
+
+enum Severite { 
+ LOW
+ MEDIUM
+ HIGH
+ CRITICAL 
+}
+
+enum StatutVulnerabilite { 
+ OUVERTE
+ EN_COURS
+ CORRIGEE
+ IGNORE
+ RISQUE_ACCEPTE
+ VERIFIEE 
+}
+
+enum StatutScan { 
+ PLANIFIE
+ EN_COURS
+ TERMINE
+ ANNULE
+ ECHEC 
+}
+
+enum TypeScan { 
+ VULNERABILITE
+ COMPLIANCE
+ PENETRATION
+ CONFIGURATION 
+}
+
+enum OutilScan { 
+ NESSUS
+ OPENVAS
+ QUALYS
+ BURP_SUITE
+ TRIVY
+ ZAP
+ MANUAL 
+}
+
+enum FormatRapport { 
+ PDF
+ JSON
+ CSV
+ HTML
+ MARKDOWN 
+}
+
+enum Priorite { 
+ BASSE
+ MOYENNE
+ HAUTE
+ CRITIQUE 
+}
+
+enum StatutPlan { 
+ A_FAIRE
+ EN_COURS
+ TERMINE
+ EN_RETARD
+ ANNULE
+ VERIFIE 
+}
+
+enum StatutConformite { 
+ CONFORME
+ NON_CONFORME
+ PARTIELLEMENT
+ NON_EVALUE 
+}
 
 // ====================== MODELS ======================
 
 model Utilisateur {
-  id                String   @id @default(uuid())
-  nom               String
-  prenom            String
-  email             String   @unique
-  motDePasseHashe   String
-  role              RoleUtilisateur
-  actif             Boolean  @default(true)
-  deletedAt         DateTime?
+  id                      String           @id @default(uuid())
+  nom                     String
+  prenom                  String
+  email                   String           @unique
+  motDePasseHashe         String
+  role                    RoleUtilisateur
+  actif                   Boolean          @default(true)
+  deletedAt               DateTime?
 
-  scansLancees      Scan[]                 @relation("ScanLancePar")
-  rapportsGenere    RapportAudit[]         @relation("RapportGenerePar")
+  scansLancees            Scan[]           @relation("ScanLancePar")
+  rapportsGenere          RapportAudit[]   @relation("RapportGenerePar")
   vulnerabilitesAssignees Vulnerabilite[]  @relation("VulnAssigneA")
-  plansAssignes     PlanCorrection[]       @relation("PlanAssigneA")
+  plansAssignes           PlanCorrection[] @relation("PlanAssigneA")
+  
+  // AJOUTER CETTE LIGNE :
+  historiquesVulnerabilite HistoriqueVulnerabilite[]
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@map("utilisateurs")
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
 }
 
 model Actif {
@@ -61,6 +145,7 @@ model Actif {
   deletedAt     DateTime?
 
   scans         Scan[]         @relation("ScanSurActif")
+  rapports      RapportAudit[] @relation("RapportActif") // AJOUTER
 
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -162,13 +247,15 @@ model HistoriqueVulnerabilite {
 model RapportAudit {
   id          String       @id @default(uuid())
   generePar   String
+  idActif     String       // AJOUTER
   titre       String
   description String?
   format      FormatRapport
-  urlFichier  String?      // chemin du fichier stocké
+  urlFichier  String?
   genereLe    DateTime     @default(now())
 
   utilisateur Utilisateur  @relation("RapportGenerePar", fields: [generePar], references: [id])
+  actif       Actif        @relation("RapportActif", fields: [idActif], references: [id]) // AJOUTER
 
   createdAt   DateTime     @default(now())
 
