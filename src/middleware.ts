@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+// Note : Ajustez le nom de l'enum si vous utilisez "Role" à la place de "RoleUtilisateur"
 import { RoleUtilisateur } from "@prisma/client";
-import { logAction } from "./audit";
 
+// CORRECTION : Remplacement de '<<' par '<'
 const ROLE_PERMISSIONS: Record<RoleUtilisateur, string[]> = {
   [RoleUtilisateur.ADMIN]: [
     "/",
@@ -25,6 +26,7 @@ const ROLE_PERMISSIONS: Record<RoleUtilisateur, string[]> = {
     "/rapports",
     "/conformite",
   ],
+  // Attention : Assurez-vous que SUPERVISEUR existe dans votre enum Prisma
   [RoleUtilisateur.SUPERVISEUR]: [
     "/",
     "/dashboard",
@@ -52,42 +54,57 @@ export async function middleware(req: NextRequest) {
   const userId = token?.id as string | undefined;
   const pathname = nextUrl.pathname;
 
-  if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) {
+  if (PUBLIC_ROUTES.some((route: string) => pathname.startsWith(route))) {
     return NextResponse.next();
   }
 
   if (!isLoggedIn) {
-    // Log tentative d'accès non authentifié
-    await logAction({
+    logToApi({
       idUtilisateur: undefined,
       action: "LECTURE",
       entite: "UTILISATEUR",
       details: { route: pathname, resultat: "ACCES_REFUSE_NON_AUTHENTIFIE" },
-      ipAdresse: req.ip ?? undefined,
+      // Utilisation parfaite des headers pour récupérer l'IP !
+      ipAdresse: req.headers.get("x-forwarded-for") ?? undefined,
       userAgent: req.headers.get("user-agent") ?? undefined,
     });
     return NextResponse.redirect(new URL("/auth/login", nextUrl));
   }
 
   const allowedRoutes = ROLE_PERMISSIONS[userRole ?? RoleUtilisateur.AUDITEUR];
-  const hasPermission = allowedRoutes.some((route) =>
+  const hasPermission = allowedRoutes ? allowedRoutes.some((route: string) =>
     pathname.startsWith(route)
-  );
+  ) : false;
 
   if (!hasPermission) {
-    // Log tentative d'accès non autorisé (RBAC)
-    await logAction({
+    logToApi({
       idUtilisateur: userId,
       action: "LECTURE",
       entite: "UTILISATEUR",
       details: { route: pathname, role: userRole, resultat: "ACCES_REFUSE_RBAC" },
-      ipAdresse: req.ip ?? undefined,
+      ipAdresse: req.headers.get("x-forwarded-for") ?? undefined,
       userAgent: req.headers.get("user-agent") ?? undefined,
     });
     return NextResponse.redirect(new URL("/dashboard?error=unauthorized", nextUrl));
   }
 
   return NextResponse.next();
+}
+
+function logToApi(data: {
+  idUtilisateur?: string;
+  action: string;
+  entite: string;
+  details?: Record<string, unknown>;
+  ipAdresse?: string;
+  userAgent?: string;
+}) {
+  const url = process.env.NEXTAUTH_URL || "http://localhost:3000";
+  fetch(`${url}/api/audit/log`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  }).catch(() => {});
 }
 
 export const config = {
