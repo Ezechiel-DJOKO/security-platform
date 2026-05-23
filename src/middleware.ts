@@ -1,8 +1,9 @@
-import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
 import { RoleUtilisateur } from "@prisma/client";
 
-const ROLE_PERMISSIONS: Record<<RoleUtilisateur, string[]> = {
+const ROLE_PERMISSIONS: Record<RoleUtilisateur, string[]> = {
   [RoleUtilisateur.ADMIN]: [
     "/",
     "/dashboard",
@@ -42,10 +43,11 @@ const PUBLIC_ROUTES = [
   "/favicon.ico",
 ];
 
-export default auth((req) => {
+export async function middleware(req: NextRequest) {
   const { nextUrl } = req;
-  const isLoggedIn = !!req.auth;
-  const userRole = req.auth?.user?.role;
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  const isLoggedIn = !!token;
+  const userRole = token?.role as RoleUtilisateur | undefined;
   const pathname = nextUrl.pathname;
 
   if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) {
@@ -66,7 +68,7 @@ export default auth((req) => {
   }
 
   return NextResponse.next();
-});
+}
 
 export const config = {
   matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],

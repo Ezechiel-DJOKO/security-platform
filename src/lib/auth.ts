@@ -1,19 +1,14 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import GoogleProvider from "next-auth/providers/google";
-import GitHubProvider from "next-auth/providers/github";
-import bcrypt from "bcryptjs";
 import { RoleUtilisateur } from "@prisma/client";
 import { prisma } from "./prisma";
+import bcrypt from "bcryptjs";
+import type { JWT } from "next-auth/jwt";
+import type { User } from "next-auth";
 
-export const {
-  handlers: { GET, POST },
-  auth,
-  signIn,
-  signOut,
-} = NextAuth({
+export const authOptions = {
   session: {
-    strategy: "jwt",
+    strategy: "jwt" as const,
     maxAge: 24 * 60 * 60,
   },
   pages: {
@@ -21,16 +16,6 @@ export const {
     error: "/auth/error",
   },
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      allowDangerousEmailAccountLinking: true,
-    }),
-    GitHubProvider({
-      clientId: process.env.GITHUB_CLIENT_ID!,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-      allowDangerousEmailAccountLinking: true,
-    }),
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -63,49 +48,30 @@ export const {
     }),
   ],
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt({ token, user }: { token: JWT; user: User | null }) {
       if (user) {
         token.id = user.id;
         token.role = user.role;
       }
-      if (account && !token.role) {
-        const dbUser = await prisma.utilisateur.findUnique({
-          where: { email: token.email! },
-          select: { role: true },
-        });
-        token.role = dbUser?.role ?? RoleUtilisateur.AUDITEUR;
-      }
       return token;
     },
-    async session({ session, token }) {
+    async session({ session, token }: { session: any; token: JWT }) {
       if (token) {
         session.user.id = token.id as string;
         session.user.role = token.role as RoleUtilisateur;
       }
       return session;
     },
-    async signIn({ user, account }) {
-      if (account?.type === "oauth") {
-        const existing = await prisma.utilisateur.findUnique({
-          where: { email: user.email! },
-        });
-        if (!existing) {
-          await prisma.utilisateur.create({
-            data: {
-              email: user.email!,
-              nom: user.name?.split(" ").pop() || "OAuth",
-              prenom: user.name?.split(" ")[0] || "User",
-              motDePasseHashe: "",
-              role: RoleUtilisateur.AUDITEUR,
-              actif: true,
-            },
-          });
-        }
-      }
-      return true;
-    },
   },
-});
+};
+
+// Pour les pages serveur (NextAuth v4)
+export const auth = () => {
+  const { getServerSession } = require("next-auth");
+  return getServerSession(authOptions);
+};
+
+export default NextAuth(authOptions);
 
 declare module "next-auth" {
   interface Session {
