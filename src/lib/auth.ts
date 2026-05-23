@@ -5,7 +5,7 @@ import { prisma } from "./prisma";
 import bcrypt from "bcryptjs";
 import type { JWT } from "next-auth/jwt";
 import type { User } from "next-auth";
-import { logAuth } from "./audit";
+import { logAuth } from "./audit";   // Assure-toi que ce chemin est correct
 
 export const authOptions = {
   session: {
@@ -14,7 +14,7 @@ export const authOptions = {
   },
   pages: {
     signIn: "/auth/login",
-    error: "/auth/error",
+    error: "/auth/error",        // Tu peux créer une belle page plus tard
   },
   providers: [
     CredentialsProvider({
@@ -24,32 +24,63 @@ export const authOptions = {
         password: { label: "Mot de passe", type: "password" },
       },
       async authorize(credentials, req) {
-        if (!credentials?.email || !credentials?.password) return null;
+        try {
+          if (!credentials?.email || !credentials?.password) {
+            console.log("❌ Credentials manquants");
+            return null;
+          }
 
-        const user = await prisma.utilisateur.findUnique({
-          where: { email: credentials.email },
-        });
+          const user = await prisma.utilisateur.findUnique({
+            where: { email: credentials.email as string },
+          });
 
-        if (!user || !user.actif) return null;
+          if (!user) {
+            console.log("❌ Utilisateur non trouvé :", credentials.email);
+            return null;
+          }
 
-        const isValid = await bcrypt.compare(
-          credentials.password,
-          user.motDePasseHashe
-        );
+          if (!user.actif) {
+            console.log("❌ Compte inactif :", credentials.email);
+            return null;
+          }
 
-        if (!isValid) return null;
+          const isValid = await bcrypt.compare(
+            credentials.password as string,
+            user.motDePasseHashe
+          );
 
-        // Log connexion réussie
-        const ip = req.headers?.["x-forwarded-for"]?.toString() || req.headers?.["x-real-ip"]?.toString();
-        const ua = req.headers?.["user-agent"]?.toString();
-        await logAuth(user.id, "CONNEXION", ip, ua);
+          if (!isValid) {
+            console.log("❌ Mot de passe incorrect pour :", credentials.email);
+            return null;
+          }
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: `${user.prenom} ${user.nom}`,
-          role: user.role,
-        };
+          console.log("✅ Connexion réussie :", user.email);
+
+          // === Log Audit (protégé contre les erreurs) ===
+          try {
+            const ip = 
+              req.headers?.["x-forwarded-for"]?.toString().split(",")[0] ||
+              req.headers?.["x-real-ip"]?.toString() ||
+              undefined;
+
+            const ua = req.headers?.["user-agent"]?.toString();
+
+            await logAuth(user.id, "CONNEXION", ip, ua);
+          } catch (auditError) {
+            console.error("⚠️ Erreur lors du log audit (non bloquante):", auditError);
+            // On continue quand même la connexion
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: `${user.prenom} ${user.nom}`,
+            role: user.role,
+          };
+        } catch (error) {
+          console.error("🚨 Erreur grave dans authorize():", error);
+          return null;
+        }
       },
     }),
   ],
@@ -61,6 +92,7 @@ export const authOptions = {
       }
       return token;
     },
+
     async session({ session, token }: { session: any; token: JWT }) {
       if (token) {
         session.user.id = token.id as string;
@@ -68,17 +100,13 @@ export const authOptions = {
       }
       return session;
     },
-    async signOut({ token }: { token: JWT }) {
-      // Log déconnexion
-      if (token?.id) {
-        await logAuth(token.id as string, "DECONNEXION");
-      }
-      return true;
-    },
+
+    // Ce callback n'est pas le bon endroit pour loguer la déconnexion
+    // On le gérera autrement (dans une route API par exemple)
   },
 };
 
-// Pour les pages serveur (NextAuth v4)
+// Export pour les pages serveur
 export const auth = () => {
   const { getServerSession } = require("next-auth");
   return getServerSession(authOptions);
@@ -86,6 +114,7 @@ export const auth = () => {
 
 export default NextAuth(authOptions);
 
+// === Type augmentations ===
 declare module "next-auth" {
   interface Session {
     user: {
@@ -93,9 +122,9 @@ declare module "next-auth" {
       role: RoleUtilisateur;
       email: string;
       name?: string | null;
-      image?: string | null;
     };
   }
+
   interface User {
     role: RoleUtilisateur;
   }
