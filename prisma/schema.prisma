@@ -109,6 +109,30 @@ enum StatutConformite {
  NON_EVALUE 
 }
 
+// ====================== AUDIT TRAIL ENUMS ======================
+enum TypeAction {
+  CONNEXION
+  DECONNEXION
+  CREATION
+  MODIFICATION
+  SUPPRESSION
+  LECTURE
+  EXPORT
+  SCAN
+  ASSIGNATION
+  VALIDATION
+}
+
+enum EntiteCible {
+  UTILISATEUR
+  ACTIF
+  SCAN
+  VULNERABILITE
+  PLAN_CORRECTION
+  RAPPORT
+  CONTROLE_CONFORMITE
+}
+
 // ====================== MODELS ======================
 
 model Utilisateur {
@@ -128,6 +152,7 @@ model Utilisateur {
   
   // AJOUTER CETTE LIGNE :
   historiquesVulnerabilite HistoriqueVulnerabilite[]
+  auditLogs               AuditLog[]       @relation("AuditUtilisateur")
 
   createdAt               DateTime         @default(now())
   updatedAt               DateTime         @updatedAt
@@ -288,4 +313,25 @@ model ControlScan {
   controle          ControlConformite @relation(fields: [idControle], references: [id])
 
   @@map("control_scan")
+}
+
+model AuditLog {
+  id              String       @id @default(uuid())
+  idUtilisateur   String?
+  action          TypeAction
+  entite          EntiteCible
+  idEntite        String?      // ID de l'entité concernée
+  details         Json?        // Détails supplémentaires (avant/après)
+  ipAdresse       String?
+  userAgent       String?
+  dateAction      DateTime     @default(now())
+
+  // Relations optionnelles
+  utilisateur     Utilisateur? @relation("AuditUtilisateur", fields: [idUtilisateur], references: [id], onDelete: SetNull)
+
+  @@index([idUtilisateur])
+  @@index([action])
+  @@index([entite])
+  @@index([dateAction])
+  @@map("audit_logs")
 }

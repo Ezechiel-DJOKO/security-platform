@@ -5,6 +5,7 @@ import { prisma } from "./prisma";
 import bcrypt from "bcryptjs";
 import type { JWT } from "next-auth/jwt";
 import type { User } from "next-auth";
+import { logAuth } from "./audit";
 
 export const authOptions = {
   session: {
@@ -22,7 +23,7 @@ export const authOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Mot de passe", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
 
         const user = await prisma.utilisateur.findUnique({
@@ -37,6 +38,11 @@ export const authOptions = {
         );
 
         if (!isValid) return null;
+
+        // Log connexion réussie
+        const ip = req.headers?.["x-forwarded-for"]?.toString() || req.headers?.["x-real-ip"]?.toString();
+        const ua = req.headers?.["user-agent"]?.toString();
+        await logAuth(user.id, "CONNEXION", ip, ua);
 
         return {
           id: user.id,
@@ -61,6 +67,13 @@ export const authOptions = {
         session.user.role = token.role as RoleUtilisateur;
       }
       return session;
+    },
+    async signOut({ token }: { token: JWT }) {
+      // Log déconnexion
+      if (token?.id) {
+        await logAuth(token.id as string, "DECONNEXION");
+      }
+      return true;
     },
   },
 };
