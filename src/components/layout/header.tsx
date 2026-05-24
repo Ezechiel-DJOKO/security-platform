@@ -2,7 +2,7 @@
 "use client";
 
 import { Bell, Search, User } from "lucide-react";
-import { Input } from "@/components/ui/nput"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button";
 
 export function Header() {
