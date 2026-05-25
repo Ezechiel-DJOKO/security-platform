@@ -1,186 +1,155 @@
-// src/app/(dashboard)/rapports/page.tsx
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { DataTable } from "@/components/common/DataTable";
-import { 
-  Plus, 
-  Download, 
-  FileText, 
-  Calendar,
-  Eye 
-} from "lucide-react";
+import { useState } from 'react';
+import { Download, Calendar, FileText, TrendingUp, Users, Shield } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 
-const reports = [
-  {
-    id: "RPT-20260524-001",
-    name: "Rapport Complet de Vulnérabilités - Mai 2026",
-    type: "Vulnérabilités",
-    date: "2026-05-24",
-    status: "Terminé",
-    format: "PDF",
-    size: "8.4 MB"
-  },
-  {
-    id: "RPT-20260522-003",
-    name: "Audit de Conformité NIS2 & ISO 27001",
-    type: "Conformité",
-    date: "2026-05-22",
-    status: "Terminé",
-    format: "PDF",
-    size: "12.7 MB"
-  },
-  {
-    id: "RPT-20260520-002",
-    name: "Rapport d'Activité - Semaine 20",
-    type: "Audit Complet",
-    date: "2026-05-20",
-    status: "Terminé",
-    format: "PDF",
-    size: "5.2 MB"
-  },
-  {
-    id: "RPT-20260518-001",
-    name: "Analyse des Risques Critiques",
-    type: "Vulnérabilités",
-    date: "2026-05-18",
-    status: "En cours",
-    format: "JSON",
-    size: "-"
-  },
+const rapportsRecents = [
+  { id: "RPT-202605", titre: "Rapport Mensuel de Sécurité - Mai 2026", type: "Synthèse", date: "24 Mai 2026", taille: "2.4 MB" },
+  { id: "RPT-202604", titre: "Audit des Vulnérabilités Q2 2026", type: "Technique", date: "15 Mai 2026", taille: "4.1 MB" },
+  { id: "RPT-202603", titre: "Conformité ISO 27001 - Rapport Trimestriel", type: "Conformité", date: "02 Mai 2026", taille: "1.8 MB" },
+];
+
+const statsData = [
+  { mois: 'Jan', incidents: 14, resolution: 85 },
+  { mois: 'Fév', incidents: 22, resolution: 78 },
+  { mois: 'Mar', incidents: 11, resolution: 92 },
+  { mois: 'Avr', incidents: 18, resolution: 81 },
+  { mois: 'Mai', incidents: 9,  resolution: 95 },
+];
+
+const typeRapportData = [
+  { name: 'Sécurité', value: 45, color: '#3b82f6' },
+  { name: 'Conformité', value: 30, color: '#22c55e' },
+  { name: 'Vulnérabilités', value: 25, color: '#ef4444' },
 ];
 
 export default function RapportsPage() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [typeFilter, setTypeFilter] = useState("Tous");
-
-  const filteredReports = reports.filter(report => {
-    const matchesSearch = report.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         report.id.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesType = typeFilter === "Tous" || report.type === typeFilter;
-    
-    return matchesSearch && matchesType;
-  });
-
-  const columns = [
-    { header: "ID Rapport", accessor: "id" as const },
-    { header: "Nom du Rapport", accessor: "name" as const },
-    { 
-      header: "Type", 
-      accessor: (r: any) => (
-        <span className="inline-block px-4 py-1 rounded-full bg-gray-800 text-xs font-medium">
-          {r.type}
-        </span>
-      )
-    },
-    { header: "Date de Génération", accessor: "date" as const },
-    { 
-      header: "Statut", 
-      accessor: (r: any) => (
-        <span className={`px-4 py-1 rounded-full text-sm font-medium
-          ${r.status === "Terminé" ? "bg-green-500/20 text-green-400" : 
-            "bg-blue-500/20 text-blue-400"}`}>
-          {r.status}
-        </span>
-      )
-    },
-    { header: "Format", accessor: "format" as const },
-    { header: "Taille", accessor: "size" as const },
-    { 
-      header: "Actions", 
-      accessor: (r: any) => (
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" className="gap-1">
-            <Eye className="w-4 h-4" />
-            Voir
-          </Button>
-          {r.status === "Terminé" && (
-            <Button size="sm" variant="default" className="gap-1">
-              <Download className="w-4 h-4" />
-              Télécharger
-            </Button>
-          )}
-        </div>
-      )
-    },
-  ];
+  const [periode, setPeriode] = useState('mois');
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight">Rapports</h1>
-          <p className="text-gray-400 mt-1">Génération et consultation des rapports de sécurité</p>
+          <h1 className="text-3xl font-bold text-white">Rapports</h1>
+          <p className="text-slate-400 mt-2">Génération et consultation des rapports de sécurité</p>
         </div>
-        <Button className="gap-2 bg-blue-600 hover:bg-blue-700 text-lg px-6 py-6">
-          <Plus className="w-5 h-5" />
-          Générer un Nouveau Rapport
-        </Button>
+        <button className="flex items-center gap-3 bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-2xl font-medium transition-all">
+          <FileText className="w-5 h-5" />
+          Générer un nouveau rapport
+        </button>
       </div>
 
       {/* Filtres */}
-      <div className="flex flex-wrap gap-4 bg-gray-950 border border-gray-800 p-6 rounded-3xl">
-        <div className="relative flex-1 min-w-[320px]">
-          <FileText className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
-          <Input
-            placeholder="Rechercher un rapport..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-11 bg-gray-900 border-gray-700"
-          />
+      <div className="flex gap-4">
+        <div className="flex border border-slate-800 rounded-2xl p-1">
+          {['semaine', 'mois', 'trimestre', 'annee'].map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriode(p)}
+              className={`px-6 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                periode === p 
+                  ? 'bg-slate-700 text-white' 
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {p.charAt(0).toUpperCase() + p.slice(1)}
+            </button>
+          ))}
         </div>
-
-        <select 
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="bg-gray-900 border border-gray-700 rounded-2xl px-5 py-3 min-w-[200px]"
-        >
-          <option value="Tous">Tous les Types</option>
-          <option value="Vulnérabilités">Vulnérabilités</option>
-          <option value="Conformité">Conformité</option>
-          <option value="Audit Complet">Audit Complet</option>
-        </select>
-
-        <Button variant="outline" className="gap-2">
-          <Calendar className="w-4 h-4" />
-          Période
-        </Button>
       </div>
 
-      {/* Liste des Rapports */}
-      <div className="bg-gray-950 border border-gray-800 rounded-3xl overflow-hidden">
-        <div className="p-6 border-b border-gray-800">
-          <h3 className="text-xl font-semibold">
-            Rapports Générés ({filteredReports.length})
-          </h3>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Graphique Évolution */}
+        <div className="lg:col-span-8 bg-slate-950 border border-slate-800 rounded-3xl p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-xl font-semibold">Évolution des Incidents et Taux de Résolution</h3>
+            <Calendar className="w-5 h-5 text-slate-500" />
+          </div>
+          <ResponsiveContainer width="100%" height={380}>
+            <LineChart data={statsData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="mois" stroke="#64748b" />
+              <YAxis stroke="#64748b" />
+              <Tooltip />
+              <Line type="monotone" dataKey="incidents" stroke="#ef4444" strokeWidth={3} name="Incidents" />
+              <Line type="monotone" dataKey="resolution" stroke="#22c55e" strokeWidth={3} name="Taux de Résolution (%)" />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
+
+        {/* Répartition par Type */}
+        <div className="lg:col-span-4 bg-slate-950 border border-slate-800 rounded-3xl p-6">
+          <h3 className="text-xl font-semibold mb-6">Répartition des Rapports</h3>
+          <ResponsiveContainer width="100%" height={340}>
+            <PieChart>
+              <Pie data={typeRapportData} cx="50%" cy="50%" innerRadius={80} outerRadius={130} dataKey="value">
+                {typeRapportData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="flex justify-center gap-6 mt-4">
+            {typeRapportData.map((item) => (
+              <div key={item.name} className="flex items-center gap-2 text-sm">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
+                <span>{item.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Rapports Récents */}
+      <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6">
+        <h3 className="text-xl font-semibold mb-6">Rapports Récents</h3>
         
-        <DataTable columns={columns} data={filteredReports} />
+        <div className="space-y-4">
+          {rapportsRecents.map((rapport, index) => (
+            <div key={index} className="flex items-center justify-between bg-slate-900 hover:bg-slate-800/80 rounded-2xl p-5 transition-all group">
+              <div className="flex items-center gap-5">
+                <div className="w-12 h-12 bg-blue-600/10 rounded-2xl flex items-center justify-center">
+                  <FileText className="w-6 h-6 text-blue-500" />
+                </div>
+                <div>
+                  <p className="font-medium text-white group-hover:text-blue-400 transition-colors">{rapport.titre}</p>
+                  <p className="text-sm text-slate-400">{rapport.type} • {rapport.date}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-6">
+                <span className="text-sm text-slate-500">{rapport.taille}</span>
+                <button className="flex items-center gap-2 bg-slate-800 hover:bg-blue-600 px-5 py-2.5 rounded-xl transition-all">
+                  <Download className="w-4 h-4" />
+                  <span className="text-sm font-medium">Télécharger</span>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Zone de Génération Rapide */}
+      {/* Boutons d'actions rapides */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-gray-950 border border-gray-800 rounded-3xl p-6 hover:border-blue-600 transition-colors cursor-pointer">
-          <h4 className="font-semibold text-lg">Rapport Vulnérabilités</h4>
-          <p className="text-gray-400 text-sm mt-2">Synthèse complète des vulnérabilités actuelles</p>
-          <Button className="w-full mt-6">Générer</Button>
-        </div>
+        <button className="bg-slate-950 border border-slate-700 hover:border-blue-600 p-8 rounded-3xl text-left transition-all group">
+          <TrendingUp className="w-10 h-10 text-blue-500 mb-4" />
+          <h4 className="text-xl font-semibold mb-2">Rapport d'Incidents</h4>
+          <p className="text-slate-400 text-sm">Générer un rapport détaillé des incidents de sécurité</p>
+        </button>
 
-        <div className="bg-gray-950 border border-gray-800 rounded-3xl p-6 hover:border-blue-600 transition-colors cursor-pointer">
-          <h4 className="font-semibold text-lg">Rapport Conformité</h4>
-          <p className="text-gray-400 text-sm mt-2">État détaillé par norme (ISO, NIS2...)</p>
-          <Button className="w-full mt-6">Générer</Button>
-        </div>
+        <button className="bg-slate-950 border border-slate-700 hover:border-emerald-600 p-8 rounded-3xl text-left transition-all group">
+          <Users className="w-10 h-10 text-emerald-500 mb-4" />
+          <h4 className="text-xl font-semibold mb-2">Rapport Utilisateurs</h4>
+          <p className="text-slate-400 text-sm">Activités et accès des utilisateurs</p>
+        </button>
 
-        <div className="bg-gray-950 border border-gray-800 rounded-3xl p-6 hover:border-blue-600 transition-colors cursor-pointer">
-          <h4 className="font-semibold text-lg">Audit Complet</h4>
-          <p className="text-gray-400 text-sm mt-2">Rapport global de sécurité</p>
-          <Button className="w-full mt-6">Générer</Button>
-        </div>
+        <button className="bg-slate-950 border border-slate-700 hover:border-purple-600 p-8 rounded-3xl text-left transition-all group">
+          <Shield className="w-10 h-10 text-purple-500 mb-4" />
+          <h4 className="text-xl font-semibold mb-2">Rapport de Conformité</h4>
+          <p className="text-slate-400 text-sm">État détaillé par norme</p>
+        </button>
       </div>
     </div>
   );

@@ -1,198 +1,143 @@
-// src/app/(dashboard)/inventaire/page.tsx
-"use client";
+'use client';
 
-import { useState } from "react";
-import { DataTable } from "@/components/common/DataTable";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { 
-  Plus, 
-  Download, 
-  Filter, 
-  Search,
-  ShieldAlert 
-} from "lucide-react";
-import { StatusBadge } from "@/components/common/StatusBadge"; // On le créera après si besoin
+import { useState } from 'react';
+import { Plus, Search, Filter, Edit2, Trash2, Shield } from 'lucide-react';
 
-const vulnerabilities = [
-  {
-    id: "VUL-3921",
-    asset: "srv-web-prod-01.ministere.bj",
-    name: "SQL Injection via login form (CVE-2025-1243)",
-    severity: "Critique",
-    cvss: 9.8,
-    date: "2026-05-20",
-    status: "Open",
-    type: "Web Application"
-  },
-  {
-    id: "VUL-3918",
-    asset: "api-v2.ministere.bj",
-    name: "Reflected XSS in search parameter",
-    severity: "Haute",
-    cvss: 8.5,
-    date: "2026-05-19",
-    status: "In Progress",
-    type: "API"
-  },
-  {
-    id: "VUL-3897",
-    asset: "mail-server-02",
-    name: "Weak Password Policy on Admin Account",
-    severity: "Moyenne",
-    cvss: 6.2,
-    date: "2026-05-18",
-    status: "Open",
-    type: "Infrastructure"
-  },
-  {
-    id: "VUL-3884",
-    asset: "db-prod-01",
-    name: "Outdated OpenSSL Version (Heartbleed risk)",
-    severity: "Haute",
-    cvss: 7.8,
-    date: "2026-05-17",
-    status: "Resolved",
-    type: "Serveur"
-  },
-  {
-    id: "VUL-3879",
-    asset: "portal.ministere.bj",
-    name: "Missing Rate Limiting on Authentication",
-    severity: "Moyenne",
-    cvss: 5.9,
-    date: "2026-05-16",
-    status: "Open",
-    type: "Web Application"
-  },
+interface Actif {
+  id: string;
+  nom: string;
+  type: string;
+  responsable: string;
+  statut: 'Critique' | 'Élevé' | 'Moyen' | 'Faible';
+  dernierScan: string;
+  valeur: string;
+}
+
+const actifsData: Actif[] = [
+  { id: "ASSET-001", nom: "Serveur Production", type: "Serveur", responsable: "Jean Dupont", statut: "Critique", dernierScan: "Il y a 2h", valeur: "450 000 FCFA" },
+  { id: "ASSET-002", nom: "PC-ADMIN-045", type: "Poste de travail", responsable: "Marie Koto", statut: "Élevé", dernierScan: "Hier", valeur: "320 000 FCFA" },
+  { id: "ASSET-003", nom: "Base de Données Centrale", type: "Base de données", responsable: "Admin Système", statut: "Moyen", dernierScan: "Il y a 3 jours", valeur: "1 200 000 FCFA" },
+  { id: "ASSET-004", nom: "Routeur Principal", type: "Réseau", responsable: "Paul Akakpo", statut: "Faible", dernierScan: "Il y a 1 semaine", valeur: "180 000 FCFA" },
 ];
 
+const statutColors = {
+  Critique: "bg-red-500/10 text-red-500 border-red-500",
+  Élevé: "bg-orange-500/10 text-orange-500 border-orange-500",
+  Moyen: "bg-yellow-500/10 text-yellow-500 border-yellow-500",
+  Faible: "bg-emerald-500/10 text-emerald-500 border-emerald-500",
+};
+
 export default function InventairePage() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [severityFilter, setSeverityFilter] = useState("Tous");
-  const [statusFilter, setStatusFilter] = useState("Tous");
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatut, setFilterStatut] = useState<string>('Tous');
 
-  const filteredData = vulnerabilities.filter(item => {
+  const filteredActifs = actifsData.filter(actif => {
     const matchesSearch = 
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.asset.toLowerCase().includes(searchTerm.toLowerCase());
+      actif.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      actif.id.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesSeverity = severityFilter === "Tous" || item.severity === severityFilter;
-    const matchesStatus = statusFilter === "Tous" || item.status === statusFilter;
-
-    return matchesSearch && matchesSeverity && matchesStatus;
+    const matchesFilter = filterStatut === 'Tous' || actif.statut === filterStatut;
+    
+    return matchesSearch && matchesFilter;
   });
 
-  const columns = [
-    { header: "ID", accessor: "id" as const },
-    { header: "Asset", accessor: "asset" as const },
-    { header: "Vulnérabilité", accessor: "name" as const },
-    { 
-      header: "Criticité", 
-      accessor: (v: any) => (
-        <span className={`inline-block px-4 py-1.5 rounded-full text-sm font-semibold
-          ${v.severity === "Critique" ? "bg-red-500/20 text-red-400 border border-red-500/30" : 
-            v.severity === "Haute" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : 
-            "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"}`}>
-          {v.severity}
-        </span>
-      )
-    },
-    { header: "CVSS", accessor: (v: any) => <span className="font-mono font-medium">{v.cvss}</span> },
-    { header: "Type", accessor: "type" as const },
-    { header: "Date", accessor: "date" as const },
-    { 
-      header: "Statut", 
-      accessor: (v: any) => (
-        <span className={`px-4 py-1 rounded-full text-sm font-medium
-          ${v.status === "Open" ? "bg-red-500/20 text-red-400" : 
-            v.status === "In Progress" ? "bg-blue-500/20 text-blue-400" : 
-            "bg-green-500/20 text-green-400"}`}>
-          {v.status}
-        </span>
-      )
-    },
-    { 
-      header: "Actions", 
-      accessor: () => (
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline">Détails</Button>
-          <Button size="sm" variant="default">Remédier</Button>
-        </div>
-      )
-    },
-  ];
-
   return (
-    <div className="space-y-8">
-      {/* Header */}
+    <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight">Inventaire des Vulnérabilités</h1>
-          <p className="text-gray-400 mt-1">Gestion et suivi de toutes les vulnérabilités détectées</p>
+          <h1 className="text-3xl font-bold text-white">Inventaire des Actifs</h1>
+          <p className="text-slate-400 mt-1">Gestion et suivi de tous les actifs informatiques</p>
         </div>
-        <div className="flex gap-3">
-          <Button variant="outline" className="gap-2">
-            <Download className="w-4 h-4" />
-            Exporter CSV
-          </Button>
-          <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
-            <Plus className="w-4 h-4" />
-            Nouvelle Analyse
-          </Button>
-        </div>
+        <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-5 py-3 rounded-2xl font-medium transition-all">
+          <Plus className="w-5 h-5" />
+          Nouvel Actif
+        </button>
       </div>
 
-      {/* Filtres */}
-      <div className="flex flex-wrap gap-4 bg-gray-950 border border-gray-800 p-5 rounded-3xl">
-        <div className="relative flex-1 min-w-[300px]">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
-          <Input
-            placeholder="Rechercher par asset ou vulnérabilité..."
+      {/* Filtres et Recherche */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-3.5 w-5 h-5 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Rechercher un actif, ID ou responsable..."
+            className="w-full bg-slate-950 border border-slate-800 rounded-2xl pl-12 py-3 focus:border-blue-600 outline-none"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-11 bg-gray-900 border-gray-700"
           />
         </div>
 
-        <select 
-          value={severityFilter}
-          onChange={(e) => setSeverityFilter(e.target.value)}
-          className="bg-gray-900 border border-gray-700 rounded-xl px-4 py-3"
+        <select
+          className="bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 focus:border-blue-600 outline-none"
+          value={filterStatut}
+          onChange={(e) => setFilterStatut(e.target.value)}
         >
-          <option value="Tous">Toutes Criticités</option>
+          <option value="Tous">Tous les statuts</option>
           <option value="Critique">Critique</option>
-          <option value="Haute">Haute</option>
-          <option value="Moyenne">Moyenne</option>
+          <option value="Élevé">Élevé</option>
+          <option value="Moyen">Moyen</option>
+          <option value="Faible">Faible</option>
         </select>
-
-        <select 
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="bg-gray-900 border border-gray-700 rounded-xl px-4 py-3"
-        >
-          <option value="Tous">Tous Statuts</option>
-          <option value="Open">Open</option>
-          <option value="In Progress">In Progress</option>
-          <option value="Resolved">Resolved</option>
-        </select>
-
-        <Button variant="outline" className="gap-2">
-          <Filter className="w-4 h-4" />
-          Plus de filtres
-        </Button>
       </div>
 
-      {/* Tableau */}
-      <div className="bg-gray-950 border border-gray-800 rounded-3xl overflow-hidden">
-        <div className="p-6 border-b border-gray-800 flex justify-between items-center">
-          <h3 className="text-xl font-semibold">
-            Toutes les Vulnérabilités ({filteredData.length})
-          </h3>
-          <span className="text-sm text-gray-500">Trié par date de découverte</span>
+      {/* Tableau des Actifs */}
+      <div className="bg-slate-950 border border-slate-800 rounded-3xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-slate-800 text-slate-400 text-sm">
+                <th className="px-6 py-5 text-left">ID</th>
+                <th className="px-6 py-5 text-left">Nom de l’Actif</th>
+                <th className="px-6 py-5 text-left">Type</th>
+                <th className="px-6 py-5 text-left">Responsable</th>
+                <th className="px-6 py-5 text-left">Statut de Risque</th>
+                <th className="px-6 py-5 text-left">Dernier Scan</th>
+                <th className="px-6 py-5 text-left">Valeur</th>
+                <th className="px-6 py-5 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800">
+              {filteredActifs.map((actif) => (
+                <tr key={actif.id} className="hover:bg-slate-900/50 transition-colors">
+                  <td className="px-6 py-5 font-mono text-sm text-slate-400">{actif.id}</td>
+                  <td className="px-6 py-5 font-medium text-white">{actif.nom}</td>
+                  <td className="px-6 py-5 text-slate-400">{actif.type}</td>
+                  <td className="px-6 py-5 text-slate-300">{actif.responsable}</td>
+                  
+                  <td className="px-6 py-5">
+                    <span className={`inline-block px-4 py-1 text-xs font-medium rounded-full border ${statutColors[actif.statut]}`}>
+                      {actif.statut}
+                    </span>
+                  </td>
+                  
+                  <td className="px-6 py-5 text-sm text-slate-400">{actif.dernierScan}</td>
+                  <td className="px-6 py-5 text-emerald-400 font-medium">{actif.valeur}</td>
+                  
+                  <td className="px-6 py-5">
+                    <div className="flex items-center justify-center gap-3">
+                      <button className="p-2 hover:bg-slate-800 rounded-xl text-blue-400 hover:text-blue-500 transition-colors">
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button className="p-2 hover:bg-slate-800 rounded-xl text-red-400 hover:text-red-500 transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        
-        <DataTable columns={columns} data={filteredData} />
+
+        {filteredActifs.length === 0 && (
+          <div className="text-center py-12 text-slate-500">
+            Aucun actif trouvé
+          </div>
+        )}
+      </div>
+
+      <div className="text-center text-xs text-slate-500">
+        Total des actifs : <span className="text-slate-300">{filteredActifs.length}</span> sur {actifsData.length}
       </div>
     </div>
   );

@@ -1,196 +1,161 @@
-// src/app/(dashboard)/conformite/page.tsx
-"use client";
+'use client';
 
-import { DataTable } from "@/components/common/DataTable";
-import { Button } from "@/components/ui/button";
-import { 
-  Plus, 
-  Download, 
-  Calendar 
-} from "lucide-react";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  Legend
-} from "recharts";
+import { ShieldCheck, AlertCircle, Clock, CheckCircle } from 'lucide-react';
 
-const frameworks = [
-  { name: "ISO 27001", compliance: 92, status: "Compliant", color: "#22c55e" },
-  { name: "NIS2", compliance: 78, status: "In Progress", color: "#eab308" },
-  { name: "RGPD", compliance: 95, status: "Compliant", color: "#22c55e" },
-  { name: "PCI-DSS", compliance: 65, status: "Partial", color: "#f97316" },
+const standards = [
+  { 
+    name: "ISO 27001", 
+    score: 92, 
+    status: "Excellent", 
+    color: "emerald",
+    controls: 45 
+  },
+  { 
+    name: "RGPD / Protection des Données", 
+    score: 87, 
+    status: "Bon", 
+    color: "blue",
+    controls: 32 
+  },
+  { 
+    name: "NIST Cybersecurity Framework", 
+    score: 76, 
+    status: "À améliorer", 
+    color: "yellow",
+    controls: 28 
+  },
+  { 
+    name: "PCI DSS", 
+    score: 65, 
+    status: "Critique", 
+    color: "red",
+    controls: 18 
+  },
 ];
 
-const globalCompliance = [
-  { name: "Conforme", value: 84, color: "#22c55e" },
-  { name: "Non Conforme", value: 16, color: "#ef4444" },
-];
-
-const controls = [
-  {
-    id: "CTRL-001",
-    requirement: "Gestion des accès et des identifiants",
-    framework: "ISO 27001 + RGPD",
-    status: "Compliant",
-    lastAudit: "2026-04-15",
-    nextAudit: "2026-10-15",
-    owner: "Tanguy ADJOVI"
-  },
-  {
-    id: "CTRL-002",
-    requirement: "Chiffrement des données sensibles",
-    framework: "RGPD + NIS2",
-    status: "Compliant",
-    lastAudit: "2026-03-20",
-    nextAudit: "2026-09-20",
-    owner: "Jean-Paul HOUNTON"
-  },
-  {
-    id: "CTRL-003",
-    requirement: "Journalisation et monitoring des événements",
-    framework: "NIS2",
-    status: "Partial",
-    lastAudit: "2026-05-01",
-    nextAudit: "2026-08-01",
-    owner: "Marie SODJINOU"
-  },
-  {
-    id: "CTRL-004",
-    requirement: "Tests d'intrusion réguliers",
-    framework: "PCI-DSS",
-    status: "In Progress",
-    lastAudit: "2026-05-10",
-    nextAudit: "2026-07-10",
-    owner: "Tanguy ADJOVI"
-  },
+const controlesRecents = [
+  { id: "CTRL-001", norme: "ISO 27001", controle: "Gestion des accès", statut: "Conforme", date: "Aujourd'hui" },
+  { id: "CTRL-002", norme: "RGPD", controle: "Consentement des données", statut: "En cours", date: "Hier" },
+  { id: "CTRL-003", norme: "NIST", controle: "Détection des intrusions", statut: "Non conforme", date: "Il y a 3 jours" },
+  { id: "CTRL-004", norme: "ISO 27001", controle: "Sauvegarde des données", statut: "Conforme", date: "Il y a 1 semaine" },
 ];
 
 export default function ConformitePage() {
-  const columns = [
-    { header: "ID", accessor: "id" as const },
-    { header: "Exigence / Contrôle", accessor: "requirement" as const },
-    { header: "Framework", accessor: "framework" as const },
-    { 
-      header: "Statut", 
-      accessor: (c: any) => (
-        <span className={`px-4 py-1.5 rounded-full text-sm font-medium
-          ${c.status === "Compliant" ? "bg-green-500/20 text-green-400" : 
-            c.status === "Partial" ? "bg-orange-500/20 text-orange-400" : 
-            "bg-blue-500/20 text-blue-400"}`}>
-          {c.status}
-        </span>
-      )
-    },
-    { header: "Dernier Audit", accessor: "lastAudit" as const },
-    { header: "Prochain Audit", accessor: "nextAudit" as const },
-    { header: "Responsable", accessor: "owner" as const },
-    { 
-      header: "Actions", 
-      accessor: () => <Button size="sm" variant="outline">Modifier</Button>
-    },
-  ];
+  const globalScore = 85;
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-4xl font-bold tracking-tight">Conformité</h1>
-          <p className="text-gray-400 mt-1">Suivi de la conformité aux normes et réglementations</p>
-        </div>
-        <div className="flex gap-3">
-          <Button variant="outline" className="gap-2">
-            <Download className="w-4 h-4" />
-            Exporter Rapport
-          </Button>
-          <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
-            <Plus className="w-4 h-4" />
-            Ajouter Contrôle
-          </Button>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold text-white">Conformité</h1>
+        <p className="text-slate-400 mt-2">Suivi de la conformité réglementaire et normative</p>
       </div>
 
-      {/* Global Compliance + Frameworks */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Taux de Conformité Global */}
-        <div className="lg:col-span-1 bg-gray-950 border border-gray-800 rounded-3xl p-8 flex flex-col items-center">
-          <h3 className="text-2xl font-semibold mb-6">Conformité Globale</h3>
-          <div className="w-52 h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={globalCompliance}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={70}
-                  outerRadius={100}
-                  dataKey="value"
-                >
-                  {globalCompliance.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="text-center mt-6">
-            <p className="text-5xl font-bold text-green-400">84%</p>
-            <p className="text-gray-400 mt-1">Global Compliance Rate</p>
-          </div>
-        </div>
+      {/* Score Global */}
+      <div className="bg-gradient-to-br from-slate-950 to-slate-900 border border-slate-700 rounded-3xl p-8 flex flex-col items-center">
+        <div className="text-emerald-400 text-7xl font-bold mb-2">{globalScore}%</div>
+        <p className="text-2xl font-semibold text-white mb-1">Niveau de Conformité Global</p>
+        <p className="text-slate-400">Dernière évaluation : il y a 2 jours</p>
+      </div>
 
-        {/* Frameworks Cards */}
-        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-          {frameworks.map((fw, index) => (
-            <div key={index} className="bg-gray-950 border border-gray-800 rounded-3xl p-6">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h4 className="text-xl font-semibold">{fw.name}</h4>
-                  <p className="text-gray-400 text-sm mt-1">Dernier audit : {fw.name === "PCI-DSS" ? "Mai 2026" : "Avril 2026"}</p>
-                </div>
-                <span className={`px-4 py-2 rounded-2xl text-sm font-medium
-                  ${fw.status === "Compliant" ? "bg-green-500/20 text-green-400" : 
-                    fw.status === "In Progress" ? "bg-yellow-500/20 text-yellow-400" : "bg-orange-500/20 text-orange-400"}`}>
-                  {fw.status}
-                </span>
+      {/* Standards Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {standards.map((standard, index) => (
+          <div key={index} className="bg-slate-950 border border-slate-800 rounded-3xl p-6 hover:border-slate-700 transition-all">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h3 className="font-semibold text-lg">{standard.name}</h3>
+                <p className="text-sm text-slate-500 mt-1">{standard.controls} contrôles</p>
               </div>
+              <ShieldCheck className={`w-8 h-8 text-${standard.color}-500`} />
+            </div>
 
-              <div className="mt-8">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-400">Taux de conformité</span>
-                  <span className="font-semibold">{fw.compliance}%</span>
-                </div>
-                <div className="h-3 bg-gray-800 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full rounded-full transition-all"
-                    style={{ 
-                      width: `${fw.compliance}%`, 
-                      backgroundColor: fw.color 
-                    }}
-                  />
-                </div>
+            <div className="mb-4">
+              <div className="flex justify-between text-sm mb-2">
+                <span>Score</span>
+                <span className="font-bold">{standard.score}%</span>
+              </div>
+              <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full bg-${standard.color}-500 rounded-full transition-all`}
+                  style={{ width: `${standard.score}%` }}
+                />
               </div>
             </div>
-          ))}
+
+            <div className={`inline-block px-4 py-1 text-xs font-medium rounded-full border border-${standard.color}-500/30 bg-${standard.color}-500/10 text-${standard.color}-400`}>
+              {standard.status}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Liste des Contrôles Récents */}
+      <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-semibold">Derniers Contrôles Évalués</h3>
+          <button className="text-blue-500 hover:text-blue-400 text-sm font-medium flex items-center gap-2">
+            Voir tous les contrôles →
+          </button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-slate-800 text-slate-400 text-sm">
+                <th className="px-6 py-4 text-left">ID</th>
+                <th className="px-6 py-4 text-left">Norme</th>
+                <th className="px-6 py-4 text-left">Contrôle</th>
+                <th className="px-6 py-4 text-left">Statut</th>
+                <th className="px-6 py-4 text-left">Date</th>
+                <th className="px-6 py-4 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800">
+              {controlesRecents.map((controle, i) => (
+                <tr key={i} className="hover:bg-slate-900/50">
+                  <td className="px-6 py-5 font-mono text-slate-400">{controle.id}</td>
+                  <td className="px-6 py-5">{controle.norme}</td>
+                  <td className="px-6 py-5 text-white">{controle.controle}</td>
+                  <td className="px-6 py-5">
+                    <span className={`px-4 py-1.5 text-xs font-medium rounded-full ${
+                      controle.statut === 'Conforme' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' :
+                      controle.statut === 'En cours' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30' :
+                      'bg-red-500/10 text-red-400 border border-red-500/30'
+                    }`}>
+                      {controle.statut}
+                    </span>
+                  </td>
+                  <td className="px-6 py-5 text-slate-400">{controle.date}</td>
+                  <td className="px-6 py-5 text-center">
+                    <button className="text-blue-400 hover:text-blue-500">
+                      <ShieldCheck className="w-5 h-5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Tableau des Contrôles */}
-      <div className="bg-gray-950 border border-gray-800 rounded-3xl overflow-hidden">
-        <div className="p-6 border-b border-gray-800 flex justify-between items-center">
-          <h3 className="text-xl font-semibold">Liste des Contrôles et Exigences</h3>
-          <div className="flex items-center gap-2 text-sm text-gray-400">
-            <Calendar className="w-4 h-4" />
-            Audits mis à jour le 24/05/2026
+      {/* Prochaines Actions */}
+      <div className="bg-slate-950 border border-amber-500/20 rounded-3xl p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <AlertCircle className="w-6 h-6 text-amber-500" />
+          <h3 className="text-xl font-semibold">Actions Prioritaires</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-slate-900/50 border border-amber-500/30 rounded-2xl p-5">
+            <p className="font-medium">Mettre à jour la politique de sauvegarde</p>
+            <p className="text-sm text-slate-400 mt-1">ISO 27001 - A.12.3</p>
+            <p className="text-xs text-amber-500 mt-3">Échéance : 7 jours</p>
+          </div>
+          <div className="bg-slate-900/50 border border-amber-500/30 rounded-2xl p-5">
+            <p className="font-medium">Former le personnel sur la protection des données</p>
+            <p className="text-sm text-slate-400 mt-1">RGPD - Article 39</p>
+            <p className="text-xs text-amber-500 mt-3">Échéance : 15 jours</p>
           </div>
         </div>
-        
-        <DataTable columns={columns} data={controls} />
       </div>
     </div>
   );

@@ -1,21 +1,22 @@
-// src/app/(dashboard)/layout.tsx
-import { Sidebar } from "@/components/layout/sidebar";
-import { Header } from "@/components/layout/header";
+import { ReactNode } from 'react';
+import Sidebar from '@/components/sidebar';
+import Header from '@/components/header';
+import { RoleGate } from '@/components/RoleGate';
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-950 text-white">
+    <div className="flex h-screen bg-slate-950 text-slate-200">
+      {/* Sidebar */}
       <Sidebar />
 
-      <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
+      {/* Contenu principal */}
+      <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
         
-        <main className="flex-1 overflow-auto bg-gray-900 p-4 lg:p-6">
-          {children}
+        <main className="flex-1 overflow-auto bg-slate-900 p-6">
+          <RoleGate allowedRoles={['ADMIN', 'SUPERVISEUR', 'AUDITEUR']}>
+            {children}
+          </RoleGate>
         </main>
       </div>
     </div>
