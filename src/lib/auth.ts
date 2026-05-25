@@ -1,6 +1,6 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { $Enums } from "@prisma/client";
+import { RoleUtilisateur } from ".prisma/client";
 import { prisma } from "./prisma";
 import bcrypt from "bcryptjs";
 import type { JWT } from "next-auth/jwt";
@@ -94,7 +94,7 @@ export const authOptions = {
     async session({ session, token }: { session: any; token: JWT }) {
       if (token) {
         session.user.id = token.id as string;
-        session.user.role = token.role as $Enums.RoleUtilisateur;
+        session.user.role = token.role as RoleUtilisateur;
       }
       return session;
     },
@@ -112,20 +112,20 @@ declare module "next-auth" {
   interface Session {
     user: {
       id: string;
-      role: $Enums.RoleUtilisateur;
+      role: RoleUtilisateur;
       email: string;
       name?: string | null;
     };
   }
 
   interface User {
-    role: $Enums.RoleUtilisateur;
+    role: RoleUtilisateur;
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
     id: string;
-    role: $Enums.RoleUtilisateur;
+    role: RoleUtilisateur;
   }
 }
