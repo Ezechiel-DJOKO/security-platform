@@ -4,24 +4,30 @@ import pg from "pg";
 
 const { Pool } = pg;
 
+// Typage strict de l'objet global pour Next.js (évite les fuites de connexions en Dev)
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
   pool: pg.Pool | undefined;
 };
 
-// Create connection pool for the adapter
-const pool = globalForPrisma.pool ?? new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+// 1. Initialisation unique du Pool de connexion PostgreSQL
+const pool = 
+  globalForPrisma.pool ?? 
+  new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: process.env.NODE_ENV === "production" ? 20 : 5, // Limite le pool en Dev pour économiser la BDD
+    idleTimeoutMillis: 30000, // Ferme les connexions inactives après 30s
+    connectionTimeoutMillis: 2000, // Timeout rapide en cas de coupure réseau
+  });
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.pool = pool;
 }
 
-// Create Prisma adapter
+// 2. Création de l'adaptateur Prisma officiel pour pg
 const adapter = new PrismaPg(pool);
 
-// Create Prisma Client with adapter
+// 3. Instance unique du Prisma Client avec l'adaptateur et gestion des logs
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
