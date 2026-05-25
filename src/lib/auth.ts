@@ -1,11 +1,14 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { RoleUtilisateur } from ".prisma/client";
 import { prisma } from "./prisma";
 import bcrypt from "bcryptjs";
 import type { JWT } from "next-auth/jwt";
 import type { User } from "next-auth";
 import { logAuditEvent as logAuth } from "./audit";
+
+// Enum défini localement — doit correspondre EXACTEMENT aux valeurs du schéma Prisma
+// Remplace ces valeurs si ton schéma utilise d'autres noms
+type RoleUtilisateur = "ADMIN" | "SUPERVISEUR" | "AUDITEUR";
 
 export const authOptions = {
   session: {
@@ -73,7 +76,7 @@ export const authOptions = {
             id: user.id,
             email: user.email,
             name: `${user.prenom} ${user.nom}`,
-            role: user.role,
+            role: user.role as RoleUtilisateur,
           };
         } catch (error) {
           console.error("🚨 Erreur grave dans authorize():", error);
