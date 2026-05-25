@@ -1,5 +1,3 @@
-// src/app/api/auth/[...nextauth]/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import { logAction } from "@/lib/audit";   // Garde cet import
 

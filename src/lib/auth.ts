@@ -5,7 +5,7 @@ import { prisma } from "./prisma";
 import bcrypt from "bcryptjs";
 import type { JWT } from "next-auth/jwt";
 import type { User } from "next-auth";
-import { logAuditEvent as logAuth } from "./audit";   // ← Changé ici
+import { logAuditEvent as logAuth } from "./audit";
 
 export const authOptions = {
   session: {
@@ -14,7 +14,7 @@ export const authOptions = {
   },
   pages: {
     signIn: "/auth/login",
-    error: "/auth/error",        // Tu peux créer une belle page plus tard
+    error: "/auth/error",
   },
   providers: [
     CredentialsProvider({
@@ -23,7 +23,8 @@ export const authOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Mot de passe", type: "password" },
       },
-      async authorize(credentials, req) {
+      // Typage de req en 'any' pour éviter les conflits de types sur les en-têtes (headers)
+      async authorize(credentials, req: any) {
         try {
           if (!credentials?.email || !credentials?.password) {
             console.log("❌ Credentials manquants");
@@ -56,8 +57,9 @@ export const authOptions = {
 
           console.log("✅ Connexion réussie :", user.email);
 
-          // === Log Audit (protégé contre les erreurs) ===
+          // === Log Audit ===
           try {
+            // Extraction sécurisée de l'adresse IP depuis les en-têtes de la requête
             const ip = 
               req.headers?.["x-forwarded-for"]?.toString().split(",")[0] ||
               req.headers?.["x-real-ip"]?.toString() ||
@@ -68,7 +70,6 @@ export const authOptions = {
             await logAuth(user.id, "CONNEXION", ip, ua);
           } catch (auditError) {
             console.error("⚠️ Erreur lors du log audit (non bloquante):", auditError);
-            // On continue quand même la connexion
           }
 
           return {
@@ -100,21 +101,18 @@ export const authOptions = {
       }
       return session;
     },
-
-    // Ce callback n'est pas le bon endroit pour loguer la déconnexion
-    // On le gérera autrement (dans une route API par exemple)
   },
 };
 
-// Export pour les pages serveur
+// Version moderne de l'export utilitaire pour les Server Components
 export const auth = () => {
-  const { getServerSession } = require("next-auth");
+  const { getServerSession } = require("next-auth/next");
   return getServerSession(authOptions);
 };
 
 export default NextAuth(authOptions);
 
-// === Type augmentations ===
+// === Augmentation des modules de types (Module Augmentation) ===
 declare module "next-auth" {
   interface Session {
     user: {
