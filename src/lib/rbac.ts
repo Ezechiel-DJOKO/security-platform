@@ -1,4 +1,4 @@
-import { RoleUtilisateur } from "@prisma/client";
+import { RoleUtilisateur } from "@prisma/client/index";
 
 export const ROLES_HIERARCHY: Record<RoleUtilisateur, number> = {
   [RoleUtilisateur.AUDITEUR]: 1,
