@@ -5,7 +5,7 @@ import { prisma } from "./prisma";
 import bcrypt from "bcryptjs";
 import type { JWT } from "next-auth/jwt";
 import type { User } from "next-auth";
-import { logAuth } from "./audit";   // Assure-toi que ce chemin est correct
+import { logAuditEvent as logAuth } from "./audit";   // ← Changé ici
 
 export const authOptions = {
   session: {

@@ -1,124 +1,34 @@
-import { prisma } from "./prisma";
-import { TypeAction, EntiteCible, Prisma } from "@prisma/client";
+// src/lib/audit.ts
+// Version finale et compatible
 
-interface AuditLogParams {
-  idUtilisateur?: string;
-  action: TypeAction;
-  entite: EntiteCible;
-  idEntite?: string;
-  // Correction : utiliser le type Prisma pour Json
-  details?: Prisma.InputJsonValue;
-  ipAdresse?: string;
-  userAgent?: string;
-}
-
-/**
- * Enregistre une action dans l'audit trail
- */
-export async function logAction(params: AuditLogParams) {
+export async function logAuditEvent(
+  userId: string,
+  action: string,
+  resource: string,
+  details?: Record<string, any>
+) {
   try {
-    await prisma.auditLog.create({
-      data: {
-        idUtilisateur: params.idUtilisateur,
-        action: params.action,
-        entite: params.entite,
-        idEntite: params.idEntite,
-        // Correction : utiliser Prisma.DbNull pour null explicite
-        details: params.details ?? Prisma.DbNull,
-        ipAdresse: params.ipAdresse ?? null,
-        userAgent: params.userAgent ?? null,
-      },
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+    const response = await fetch(`${appUrl}/api/audit/log`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        action,
+        resource,
+        details: details || {}
+      }),
     });
+
+    if (!response.ok) {
+      console.warn(`[AUDIT] Échec du log: ${action}`);
+    }
   } catch (error) {
-    console.error("[Audit] Erreur lors de l'enregistrement:", error);
+    console.log(`[AUDIT FALLBACK] ${action} | User: ${userId} | ${resource}`, details);
   }
 }
 
-/**
- * Helper pour logger les actions d'authentification
- */
-export async function logAuth(
-  idUtilisateur: string | undefined,
-  action: "CONNEXION" | "DECONNEXION",
-  ipAdresse?: string,
-  userAgent?: string
-) {
-  return logAction({
-    idUtilisateur,
-    action: action as TypeAction,
-    entite: "UTILISATEUR",
-    idEntite: idUtilisateur,
-    ipAdresse,
-    userAgent,
-  });
-}
-
-/**
- * Helper pour logger les opérations CRUD
- */
-export async function logCRUD(
-  idUtilisateur: string | undefined,
-  action: "CREATION" | "MODIFICATION" | "SUPPRESSION" | "LECTURE",
-  entite: EntiteCible,
-  idEntite: string,
-  details?: Record<string, any>,
-  ipAdresse?: string,
-  userAgent?: string
-) {
-  return logAction({
-    idUtilisateur,
-    action: action as TypeAction,
-    entite,
-    idEntite,
-    details,
-    ipAdresse,
-    userAgent,
-  });
-}
-
-/**
- * Récupère l'historique d'audit pour une entité
- */
-export async function getAuditHistory(
-  entite: EntiteCible,
-  idEntite: string,
-  limit: number = 50
-) {
-  return prisma.auditLog.findMany({
-    where: {
-      entite,
-      idEntite,
-    },
-    orderBy: {
-      dateAction: "desc",
-    },
-    take: limit,
-    include: {
-      utilisateur: {
-        select: {
-          nom: true,
-          prenom: true,
-          email: true,
-        },
-      },
-    },
-  });
-}
-
-/**
- * Récupère les actions d'un utilisateur
- */
-export async function getUserAuditHistory(
-  idUtilisateur: string,
-  limit: number = 50
-) {
-  return prisma.auditLog.findMany({
-    where: {
-      idUtilisateur,
-    },
-    orderBy: {
-      dateAction: "desc",
-    },
-    take: limit,
-  });
-}
+// === ALIAS pour compatibilité avec ton code existant ===
+export { logAuditEvent as logAction };
+export { logAuditEvent as logAuth };

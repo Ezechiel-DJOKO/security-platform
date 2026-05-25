@@ -1,13 +1,23 @@
+// src/app/api/auth/[...nextauth]/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
-import { logAction } from "@/lib/audit";
+import { logAction } from "@/lib/audit";   // Garde cet import
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    await logAction(body);
+
+    // === Correction ici ===
+    await logAction(
+      body.userId || "anonymous",     // userId
+      body.action || "LOGIN",         // action
+      body.resource || "Auth",        // resource / entite
+      body.details || {}              // details
+    );
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[API Audit] Erreur:", error);
-    return NextResponse.json({ success: false }, { status: 500 });
+    return NextResponse.json({ error: "Failed to log action" }, { status: 500 });
   }
 }

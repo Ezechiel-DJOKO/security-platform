@@ -1,55 +1,35 @@
-import { NextRequest, NextResponse } from "next/server";
-import { logAction } from "@/lib/audit";
-import { TypeAction, EntiteCible } from "@prisma/client";
+export const runtime = 'nodejs'
 
-// Interface pour la requête
-interface AuditLogRequest {
-  idUtilisateur?: string;
-  action: TypeAction;
-  entite: EntiteCible;
-  idEntite?: string;
-  details?: Record<string, any>;
-  ipAdresse?: string;
-  userAgent?: string;
-}
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { prisma } from '@/lib/prisma'
 
 export async function POST(req: NextRequest) {
   try {
-    const body: AuditLogRequest = await req.json();
+    const session = await getServerSession()
+    const { userId, action, resource, details } = await req.json()
 
-    // Validation basique
-    if (!body.action || !body.entite) {
-      return NextResponse.json(
-        { error: "Action et entité sont obligatoires" },
-        { status: 400 }
-      );
-    }
+    // Récupération sécurisée de l'IP
+    const ipAdresse = 
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      req.headers.get('x-real-ip') ||
+      null
 
-    // Récupération de l'IP (compatible Next.js 15)
-    const ipAdresse =
-      body.ipAdresse ||
-      req.headers.get("x-forwarded-for")?.split(",")[0] ||
-      req.headers.get("x-real-ip") ||
-      undefined;
+    await prisma.auditLog.create({
+      data: {
+        idUtilisateur: userId || (session?.user as any)?.id || null,
+        action: action as any,
+        entite: resource as any,
+        idEntite: null,
+        details: details || {},
+        ipAdresse: ipAdresse,
+        userAgent: req.headers.get('user-agent') || null,
+      }
+    })
 
-    const userAgent = body.userAgent || req.headers.get("user-agent") || undefined;
-
-    await logAction({
-      idUtilisateur: body.idUtilisateur,
-      action: body.action,
-      entite: body.entite,
-      idEntite: body.idEntite,
-      details: body.details,
-      ipAdresse,
-      userAgent,
-    });
-
-    return NextResponse.json({ success: true }, { status: 201 });
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("[API Audit] Erreur:", error);
-    return NextResponse.json(
-      { error: "Erreur lors de l'enregistrement de l'audit" },
-      { status: 500 }
-    );
+    console.error('Audit log error:', error)
+    return NextResponse.json({ error: 'Failed to log audit' }, { status: 500 })
   }
 }
