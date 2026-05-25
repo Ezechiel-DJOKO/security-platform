@@ -1,6 +1,6 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { RoleUtilisateur } from "@prisma/client";
+import { $Enums } from "@prisma/client";
 import { prisma } from "./prisma";
 import bcrypt from "bcryptjs";
 import type { JWT } from "next-auth/jwt";
@@ -23,7 +23,6 @@ export const authOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Mot de passe", type: "password" },
       },
-      // Typage de req en 'any' pour éviter les conflits de types sur les en-têtes (headers)
       async authorize(credentials, req: any) {
         try {
           if (!credentials?.email || !credentials?.password) {
@@ -57,9 +56,7 @@ export const authOptions = {
 
           console.log("✅ Connexion réussie :", user.email);
 
-          // === Log Audit ===
           try {
-            // Extraction sécurisée de l'adresse IP depuis les en-têtes de la requête
             const ip = 
               req.headers?.["x-forwarded-for"]?.toString().split(",")[0] ||
               req.headers?.["x-real-ip"]?.toString() ||
@@ -97,14 +94,13 @@ export const authOptions = {
     async session({ session, token }: { session: any; token: JWT }) {
       if (token) {
         session.user.id = token.id as string;
-        session.user.role = token.role as RoleUtilisateur;
+        session.user.role = token.role as $Enums.RoleUtilisateur;
       }
       return session;
     },
   },
 };
 
-// Version moderne de l'export utilitaire pour les Server Components
 export const auth = () => {
   const { getServerSession } = require("next-auth/next");
   return getServerSession(authOptions);
@@ -112,25 +108,24 @@ export const auth = () => {
 
 export default NextAuth(authOptions);
 
-// === Augmentation des modules de types (Module Augmentation) ===
 declare module "next-auth" {
   interface Session {
     user: {
       id: string;
-      role: RoleUtilisateur;
+      role: $Enums.RoleUtilisateur;
       email: string;
       name?: string | null;
     };
   }
 
   interface User {
-    role: RoleUtilisateur;
+    role: $Enums.RoleUtilisateur;
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
     id: string;
-    role: RoleUtilisateur;
+    role: $Enums.RoleUtilisateur;
   }
 }
