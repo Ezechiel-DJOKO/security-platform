@@ -1,4 +1,5 @@
-import { auth } from "@/lib/auth";
+// src/app/dashboard/page.tsx
+import { auth } from "@/lib/session";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 

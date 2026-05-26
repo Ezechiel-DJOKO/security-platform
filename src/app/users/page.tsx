@@ -1,17 +1,21 @@
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/session"; // Changé de @/auth à @/lib/session
 import { redirect } from "next/navigation";
-import { isAdmin } from "@/lib/rbac";
+import Link from "next/link";
 
 export default async function UsersPage() {
   const session = await auth();
   if (!session) redirect("/auth/login");
-  if (!isAdmin(session.user.role)) redirect("/dashboard?error=unauthorized");
+
+  // Vérification du rôle ADMIN
+  if (session.user.role !== "ADMIN") {
+    redirect("/dashboard");
+  }
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Gestion des utilisateurs</h1>
-      <p>Page réservée aux administrateurs</p>
+      <h1>Gestion des Utilisateurs</h1>
       <p>Connecté en tant que : {session.user.name} ({session.user.role})</p>
+      <Link href="/dashboard">← Retour au Dashboard</Link>
     </div>
   );
 }
