@@ -3,9 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
-import { triggerScanBackground } from '@/lib/scan';   // ← Import ajouté ici
+import { triggerScanBackground, triggerNucleiScan, triggerGrypeScan } from '@/lib/scan';
 
-// ====================== POST : Déclencher un scan ======================
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
 
@@ -14,107 +13,64 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { idActif, type, outil } = await req.json();
+    const { idActif, type, outil, target, imageName } = await req.json();
 
-    if (!idActif || !type || !outil) {
-      return NextResponse.json(
-        { error: "idActif, type et outil sont obligatoires" }, 
-        { status: 400 }
-      );
+    if (!outil) {
+      return NextResponse.json({ error: "Outil requis (NUCLEI, GRYPE, OPENVAS...)" }, { status: 400 });
     }
 
-    const actifExiste = await prisma.actif.findUnique({
-      where: { id: idActif }
-    });
+    // Préparation des données de scan
+    let scanData: any = {
+      lancerPar: session.user.id,
+      type: type || "VULNERABILITE",
+      outil,
+      statut: "PLANIFIE",
+    };
 
-    if (!actifExiste) {
-      return NextResponse.json({ error: "Actif non trouvé" }, { status: 404 });
-    }
-
-    const scan = await prisma.scan.create({
-      data: {
-        idActif,
-        lancerPar: session.user.id,
-        type,
-        outil,
-        statut: 'PLANIFIE',
-      },
-      include: {
-        actif: true,
-        utilisateur: {
-          select: { nom: true, prenom: true, email: true }
-        }
+    // Vérification de l'actif si fourni
+    if (idActif) {
+      const actif = await prisma.actif.findUnique({ where: { id: idActif } });
+      if (!actif) {
+        return NextResponse.json({ error: "Actif non trouvé" }, { status: 404 });
       }
+      scanData.idActif = idActif;
+    }
+
+    // Création du scan en BDD
+    const scan = await prisma.scan.create({
+      data: scanData,
+      include: { actif: true }
     });
 
-    // Lancement du scan en arrière-plan
-    triggerScanBackground(scan.id);   // Appel correct
+    // Lancement en arrière-plan selon l'outil (un seul argument requis : scan.id)
+    if (outil === "NUCLEI") {
+      triggerNucleiScan(scan.id); 
+    } else if (outil === "GRYPE") {
+      triggerGrypeScan(scan.id); // 💡 Retrait de imageName car la fonction n'attend que l'ID
+    } else {
+      triggerScanBackground(scan.id); 
+    }
 
     return NextResponse.json({
-      message: "Scan lancé avec succès",
+      message: `Scan ${outil} lancé avec succès`,
       scanId: scan.id,
       scan
     }, { status: 201 });
 
   } catch (error: any) {
     console.error(error);
-    return NextResponse.json({ 
-      error: "Erreur lors du lancement du scan",
-      details: error.message 
-    }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// ====================== GET : Historique des scans ======================
+// Votre fonction GET existante
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  try {
+    const scans = await prisma.scan.findMany({
+      include: { actif: true }
+    });
+    return NextResponse.json(scans);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
-
-  const { searchParams } = new URL(req.url);
-  
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '10');
-  const statut = searchParams.get('statut');
-  const type = searchParams.get('type');
-  const idActif = searchParams.get('idActif');
-
-  const where: any = {};
-
-  if (statut) where.statut = statut;
-  if (type) where.type = type;
-  if (idActif) where.idActif = idActif;
-
-  const [scans, total] = await Promise.all([
-    prisma.scan.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * limit,
-      take: limit,
-      include: {
-        actif: {
-          select: { nom: true, type: true, criticite: true }
-        },
-        utilisateur: {
-          select: { nom: true, prenom: true }
-        },
-        _count: {
-          select: { vulnerabilites: true }
-        }
-      }
-    }),
-    prisma.scan.count({ where })
-  ]);
-
-  return NextResponse.json({
-    scans,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit)
-    }
-  });
 }

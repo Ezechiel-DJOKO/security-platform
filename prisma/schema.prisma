@@ -6,10 +6,12 @@
 datasource db {
   provider = "postgresql"
   
+  
 }
 
 generator client {
   provider = "prisma-client-js"
+  engineType = "binary"
 }
 
 // ====================== ENUMS ======================
@@ -76,6 +78,8 @@ enum OutilScan {
  TRIVY
  ZAP
  MANUAL 
+ GRYPE
+ NUCLEI
 }
 
 enum FormatRapport { 
@@ -181,56 +185,67 @@ model Actif {
 }
 
 model Scan {
-  id          String       @id @default(uuid())
-  idActif     String
-  lancerPar   String
-  type        TypeScan
-  outil       OutilScan
-  statut      StatutScan   @default(PLANIFIE)
-  debut       DateTime?
-  fin         DateTime?
-  duree       Int?         // en secondes
+  id           String   @id @default(uuid())
+  idActif      String
+  lancerPar    String
+  type         TypeScan
+  outil        OutilScan
+  statut       StatutScan @default(PLANIFIE)
+  debut        DateTime?
+  fin          DateTime?
+  duree        Int?           // en secondes
+  resultatBrut Json?          // ← Recommandé
+  metadata     Json?
+  erreur       String?
 
-  actif       Actif        @relation("ScanSurActif", fields: [idActif], references: [id], onDelete: Cascade)
-  utilisateur Utilisateur  @relation("ScanLancePar", fields: [lancerPar], references: [id])
+  actif        Actif     @relation("ScanSurActif", fields: [idActif], references: [id], onDelete: Cascade)
+  utilisateur  Utilisateur @relation("ScanLancePar", fields: [lancerPar], references: [id])
 
   vulnerabilites Vulnerabilite[] @relation("DetecteeParScan")
   controlesEvalues ControlScan[] @relation("ScanControles")
 
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
+  @@index([statut])
+  @@index([type])
+  @@index([debut])
   @@map("scans")
 }
 
 model Vulnerabilite {
-  id              String                @id @default(uuid())
+  id              String   @id @default(uuid())
   idScan          String
   cveId           String?
   titre           String
   description     String?
   severite        Severite
   scoreCVSS       Float?
+  cvssVersion     String?
+  epssScore       Float?
   vecteurCVSS     String?
-  statut          StatutVulnerabilite   @default(OUVERTE)
+  statut          StatutVulnerabilite @default(OUVERTE)
   assigneA        String?
-  preuve          String?               // URL ou texte de preuve
+  preuve          String?
   impact          String?
   recommandation  String?
 
-  scan            Scan                  @relation("DetecteeParScan", fields: [idScan], references: [id], onDelete: Cascade)
-  assigne         Utilisateur?          @relation("VulnAssigneA", fields: [assigneA], references: [id])
-
+  scan            Scan        @relation("DetecteeParScan", fields: [idScan], references: [id], onDelete: Cascade)
+  assigne         Utilisateur? @relation("VulnAssigneA", fields: [assigneA], references: [id])
   plan            PlanCorrection?
   historique      HistoriqueVulnerabilite[]
 
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
+  dateDecouverte  DateTime @default(now())
+  dateCorrection  DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
   deletedAt       DateTime?
 
   @@index([cveId])
-  @@index([statut])
-  @@index([severite])
+  @@index([severite, statut])
+  @@index([scoreCVSS])
+  @@index([assigneA])
   @@map("vulnerabilites")
 }
 
