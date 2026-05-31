@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 // ✅ Correction 1 : Importation de la fonction manquante depuis vos services de scan
-import { triggerNucleiScan } from '@/lib/scan'; 
+import { triggerNucleiScan } from '@/lib/scan';
 
 export const dynamic = 'force-dynamic';
 
