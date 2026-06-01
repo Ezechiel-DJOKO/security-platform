@@ -1,0 +1,15 @@
+{
+    "status": "success",
+    "scanner": "openvas",
+    "target": "192.168.10.50",
+    "data": {
+        "results": [
+            {
+                "cve": "CVE-2024-5678",
+                "nvt_name": "Cross-Site Scripting (XSS)",
+                "severity": "8.5",
+                "description": "Faille XSS détectée sur l'application e-commerce."
+            }
+        ]
+    }
+}

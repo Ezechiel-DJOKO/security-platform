@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
-import { authOptions } from '@/lib/auth';
+import { authOptions } from '@/lib/auth';   // Vérifie que ce chemin est correct
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, { params }: Params) {
             hostname: true,
             type: true,
             criticite: true,
-            localisation: true
+            localisation: true,
           }
         },
         utilisateur: {
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest, { params }: Params) {
             scoreCVSS: true,
             statut: true,
             cveId: true,
-            recommandation: true
+            recommandation: true,
           },
           orderBy: { severite: 'desc' }
         },
@@ -59,23 +59,22 @@ export async function GET(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Scan non trouvé" }, { status: 404 });
     }
 
-    // Vérification de sécurité : l'utilisateur doit être celui qui a lancé le scan ou un ADMIN
+    // Vérification de sécurité
     if (scan.lancerPar !== session.user.id && session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 });
     }
 
     return NextResponse.json({ scan });
-
   } catch (error: any) {
-    console.error(error);
-    return NextResponse.json({ 
+    console.error("Erreur GET /api/scans/[id]:", error);
+    return NextResponse.json({
       error: "Erreur lors de la récupération du scan",
-      details: error.message 
+      details: error.message
     }, { status: 500 });
   }
 }
 
-// ====================== PATCH : Modifier un scan (ex: annuler) ======================
+// ====================== PATCH : Modifier un scan ======================
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await getServerSession(authOptions);
   const { id } = await params;
@@ -87,9 +86,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const { statut } = await req.json();
 
+    if (!statut) {
+      return NextResponse.json({ error: "Le champ 'statut' est requis" }, { status: 400 });
+    }
+
     const scan = await prisma.scan.update({
       where: { id },
-      data: { statut },
+      data: { 
+        statut,
+        // Mise à jour automatique de la date si terminé ou annulé
+        ...( ['COMPLETED', 'FAILED', 'CANCELLED'].includes(statut) && { completedAt: new Date() })
+      },
       include: {
         actif: { select: { nom: true } },
         utilisateur: { select: { nom: true } }
@@ -100,9 +107,39 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       message: `Scan mis à jour avec succès (statut: ${statut})`,
       scan
     });
-
   } catch (error: any) {
-    console.error(error);
-    return NextResponse.json({ error: "Erreur lors de la mise à jour" }, { status: 500 });
+    console.error("Erreur PATCH /api/scans/[id]:", error);
+    return NextResponse.json({ 
+      error: "Erreur lors de la mise à jour du scan",
+      details: error.message 
+    }, { status: 500 });
+  }
+}
+
+// ====================== DELETE : Annuler/Supprimer un scan ======================
+export async function DELETE(req: NextRequest, { params }: Params) {
+  const session = await getServerSession(authOptions);
+  const { id } = await params;
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  }
+
+  try {
+    const scan = await prisma.scan.update({
+      where: { id },
+      data: {
+        statut: 'CANCELLED',
+        completedAt: new Date()
+      }
+    });
+
+    return NextResponse.json({
+      message: "Scan annulé avec succès",
+      scan
+    });
+  } catch (error: any) {
+    console.error("Erreur DELETE /api/scans/[id]:", error);
+    return NextResponse.json({ error: "Erreur lors de l'annulation" }, { status: 500 });
   }
 }

@@ -1,0 +1,6 @@
+{
+    "status": "success",
+    "scanner": "nuclei",
+    "target": "https://badssl.com",
+    "data": []
+}
