@@ -49,11 +49,9 @@ def scan_nuclei(target: str):
     return {"status": "error", "scanner": "nuclei", "error": error_msg}
 
 def scan_openvas(target: str):
-    """ Exécute une requête GMP OpenVAS ou simule un résultat si le serveur n'est pas connecté """
     cmd = ["gvm-cli", "--gmp-username", "admin", "--gmp-password", "password", "socket", "--xml", "<get_tasks/>"]
     result = run_command(cmd)
     
-    # En cas d'absence de serveur actif, renvoi d'un mock structuré basé sur votre SIEM
     if not result["success"]:
         mock_data = {
             "results": [
@@ -64,7 +62,6 @@ def scan_openvas(target: str):
     return {"status": "success", "scanner": "openvas", "target": target, "data": result["stdout"]}
 
 def trier_csv_par_severite(csv_filename):
-    """ Organise le fichier CSV pour remonter le risque critique en tête de page """
     if not os.path.exists(csv_filename):
         return
     
@@ -162,11 +159,33 @@ def main():
     if output.get("status") == "success":
         clean_target = target.replace(":", "_").replace("/", "_").replace("https__", "").replace("http__", "")
         json_filename = f"rapport_{scanner}_{clean_target}.json"
+        
+        # 1. Sauvegarde du fichier JSON local
         with open(json_filename, "w", encoding="utf-8") as f:
             json.dump(output, f, indent=4, ensure_ascii=False)
         
+        # 2. Sauvegarde dans le CSV centralisé
         extraire_et_sauvegarder_csv(output)
-        print(json.dumps({"status": "success", "scanner": scanner, "json_file": json_filename, "csv_dashboard": "tableau_de_bord_remediation.csv"}, ensure_ascii=False))
+        
+        # 3. Envoi synchronisé à l'API de l'application Web (Next.js)
+        try:
+            import requests
+            api_url = "http://localhost:3000/api/scans/import"
+            response = requests.post(api_url, json=output, timeout=10)
+            if response.status_code == 200:
+                web_sync = "Réussie"
+            else:
+                web_sync = f"Échec (Code {response.status_code})"
+        except Exception as api_err:
+            web_sync = f"Indisponible ({str(api_err)})"
+        
+        print(json.dumps({
+            "status": "success", 
+            "scanner": scanner, 
+            "json_file": json_filename, 
+            "csv_dashboard": "tableau_de_bord_remediation.csv",
+            "web_sync": web_sync
+        }, ensure_ascii=False))
     else:
         print(json.dumps(output, ensure_ascii=False))
 

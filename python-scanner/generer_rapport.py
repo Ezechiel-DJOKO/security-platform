@@ -47,12 +47,14 @@ def exporter_en_csv(vulnerabilites, nom_fichier="tableau_de_bord_remediation.csv
         print("Aucune vulnérabilité à exporter.")
         return
         
-    en-tetes = vulnerabilites[0].keys()
+    # Correction : Utilisation d'un underscore pour le nom de la variable
+    en_tetes = vulnerabilites[0].keys()
     
     try:
         # Configuration avec séparateur ';' et encodage utf-8-sig pour une compatibilité parfaite avec Excel
         with open(nom_fichier, mode="w", encoding="utf-8-sig", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=en-tetes, delimiter=";")
+            # Correction de l'assignation dans le fieldnames
+            writer = csv.DictWriter(f, fieldnames=en_tetes, delimiter=";")
             writer.writeheader()
             writer.writerows(vulnerabilites)
         print(f"✅ Tableau de bord généré avec succès : {nom_fichier}")

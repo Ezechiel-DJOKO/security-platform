@@ -1,0 +1,3 @@
+﻿Date Scan;Outil;Cible;ID Vulnérabilité (CVE);Titre / Package;Sévérité;Description
+2026-06-01 08:55:32;OPENVAS;192.168.10.50;CVE-2024-5678;Cross-Site Scripting (XSS);HIGH;Faille XSS détectée sur l'application e-commerce.
+2026-06-01 08:56:56;OPENVAS;192.168.10.50;CVE-2024-5678;Cross-Site Scripting (XSS);HIGH;Faille XSS détectée sur l'application e-commerce.
