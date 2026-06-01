@@ -129,8 +129,8 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const scan = await prisma.scan.update({
       where: { id },
       data: {
-        statut: 'CANCELLED',
-        completedAt: new Date()
+        statut: 'TERMINE',
+        fin: new Date()
       }
     });
 

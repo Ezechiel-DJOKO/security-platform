@@ -7,7 +7,7 @@ export async function POST(request: Request) {
 
     // 1. Mettre à jour le statut du scan
     await prisma.scan.update({
-      where: { id: Number(scanId) },
+      where: { id: scanId },
       data: { statut, duree: duree || undefined },
     });
 

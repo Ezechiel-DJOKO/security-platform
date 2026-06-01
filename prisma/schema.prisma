@@ -184,67 +184,63 @@ model Actif {
 }
 
 model Scan {
-  id             String    @id @default(uuid()) @db.Uuid
-  idActif        String    @db.Uuid                    // ← Corrigé
-  lancerPar      String    @db.Uuid                    // ← Corrigé
-  type           TypeScan
-  outil          OutilScan
-  statut         StatutScan       @default(PLANIFIE)
-  debut          DateTime?
-  fin            DateTime?
-  duree          Int?
-  resultatBrut   Json?
-  metadata       Json?
-  erreur         String?
-
-  actif          Actif            @relation("ScanSurActif", fields: [idActif], references: [id], onDelete: Cascade)
-  utilisateur    Utilisateur      @relation("ScanLancePar", fields: [lancerPar], references: [id])
-
-  vulnerabilites Vulnerabilite[]  @relation("DetecteeParScan")
-  controlesEvalues ControlScan[]  @relation("ScanControles")
-
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-
-  @@index([statut])
-  @@index([type])
-  @@index([debut])
+  id String @id @default(uuid()) @db.Uuid
+  idActif String @db.Uuid
+  lancerPar String @db.Uuid
+  type TypeScan
+  outil OutilScan
+  statut StatutScan @default(PLANIFIE)
+  debut DateTime?
+  fin DateTime?
+  duree Int?
+  resultatBrut Json?
+  metadata Json?
+  erreur String?
+  
+  // === AJOUTS ===
+  cible String?           // ex: "192.168.10.10", "web-app.local", etc.
+  
+  actif Actif @relation("ScanSurActif", fields: [idActif], references: [id], onDelete: Cascade)
+  utilisateur Utilisateur @relation("ScanLancePar", fields: [lancerPar], references: [id])
+  vulnerabilites Vulnerabilite[] @relation("DetecteeParScan")
+  controlesEvalues ControlScan[] @relation("ScanControles")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   @@map("scans")
 }
 
 model Vulnerabilite {
-  id               String    @id @default(uuid()) @db.Uuid
-  idScan           String    @db.Uuid                    // ← Corrigé
-  cveId            String?
-  titre            String
-  description      String?
-  severite         Severite
-  scoreCVSS        Float?
-  cvssVersion      String?
-  epssScore        Float?
-  vecteurCVSS      String?
-  statut           StatutVulnerabilite @default(OUVERTE)
-  assigneA         String?   @db.Uuid                    // ← Corrigé
-  preuve           String?
-  impact           String?
-  recommandation   String?
+  id String @id @default(uuid()) @db.Uuid
+  idScan String @db.Uuid
+  cveId String?
+  titre String
+  description String?
+  severite Severite
+  scoreCVSS Float?
+  cvssVersion String?
+  epssScore Float?
+  vecteurCVSS String?
+  statut StatutVulnerabilite @default(OUVERTE)
+  assigneA String? @db.Uuid
+  preuve String?
+  impact String?
+  recommandation String?
+  
+  // === AJOUTS ===
+  risqueRelatif Float?     // Pour le calcul de risque relatif
+  tags TagVulnerabilite[]  // Relation many-to-many
 
-  scan             Scan                       @relation("DetecteeParScan", fields: [idScan], references: [id], onDelete: Cascade)
-  assigne          Utilisateur?               @relation("VulnAssigneA", fields: [assigneA], references: [id])
-  plan             PlanCorrection?
-
-  historiques      HistoriqueVulnerabilite[]  @relation("HistoriqueVulnerabilite")
-
-  dateDecouverte   DateTime                   @default(now())
-  dateCorrection   DateTime?
-  createdAt        DateTime                   @default(now())
-  updatedAt        DateTime                   @updatedAt
-  deletedAt        DateTime?
-
-  @@index([cveId])
-  @@index([severite, statut])
-  @@index([scoreCVSS])
-  @@index([assigneA])
+  scan Scan @relation("DetecteeParScan", fields: [idScan], references: [id], onDelete: Cascade)
+  assigne Utilisateur? @relation("VulnAssigneA", fields: [assigneA], references: [id])
+  plan PlanCorrection?
+  historiques HistoriqueVulnerabilite[] @relation("HistoriqueVulnerabilite")
+  
+  dateDecouverte DateTime @default(now())
+  dateCorrection DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
   @@map("vulnerabilites")
 }
 
@@ -268,17 +264,19 @@ model PlanCorrection {
 }
 
 model HistoriqueVulnerabilite {
-  id               String              @id @default(uuid()) @db.Uuid
-  idVulnerabilite  String              @db.Uuid              // ← Corrigé
-  ancienStatut     StatutVulnerabilite
-  nouveauStatut    StatutVulnerabilite
-  commentaire      String?
-  modifiePar       String              @db.Uuid              // ← Corrigé
-  dateModification DateTime            @default(now())
-
-  vulnerabilite    Vulnerabilite       @relation("HistoriqueVulnerabilite", fields: [idVulnerabilite], references: [id], onDelete: Cascade)
-  utilisateur      Utilisateur         @relation("HistoriqueModifiePar", fields: [modifiePar], references: [id])
-
+  id String @id @default(uuid()) @db.Uuid
+  idVulnerabilite String @db.Uuid
+  ancienStatut StatutVulnerabilite
+  nouveauStatut StatutVulnerabilite
+  commentaire String?
+  modifiePar String @db.Uuid
+  dateModification DateTime @default(now())
+  
+  // === AJOUT ===
+  createdAt DateTime @default(now())
+  
+  vulnerabilite Vulnerabilite @relation("HistoriqueVulnerabilite", fields: [idVulnerabilite], references: [id], onDelete: Cascade)
+  utilisateur Utilisateur @relation("HistoriqueModifiePar", fields: [modifiePar], references: [id])
   @@map("historique_vulnerabilites")
 }
 
@@ -345,4 +343,23 @@ model AuditLog {
   @@index([entite])
   @@index([dateAction])
   @@map("audit_logs")
+}
+
+model Tag {
+  id String @id @default(uuid()) @db.Uuid
+  nom String @unique
+  couleur String? 
+  vulnerabilites TagVulnerabilite[]
+  createdAt DateTime @default(now())
+  @@map("tags")
+}
+
+model TagVulnerabilite {
+  id String @id @default(uuid()) @db.Uuid
+  vulnerabiliteId String @db.Uuid
+  tagId String @db.Uuid
+  vulnerabilite Vulnerabilite @relation(fields: [vulnerabiliteId], references: [id], onDelete: Cascade)
+  tag Tag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  @@unique([vulnerabiliteId, tagId])
+  @@map("tag_vulnerabilite")
 }

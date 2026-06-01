@@ -2,10 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 import { z } from 'zod';
 
-// Schéma de validation pour la mise à jour
+// Schéma de validation
 const updateVulnerabilitySchema = z.object({
   titre: z.string().min(3).optional(),
   description: z.string().optional(),
@@ -22,9 +22,13 @@ const updateVulnerabilitySchema = z.object({
 });
 
 // Calcul du risque relatif
-function calculateRisqueRelatif(scoreCVSS: number | null, epssScore: number | null, severite: string): number {
+function calculateRisqueRelatif(
+  scoreCVSS: number | null | undefined,
+  epssScore: number | null | undefined,
+  severite: string
+): number {
   if (!scoreCVSS) return 0;
-
+  
   let baseRisk = scoreCVSS;
   if (epssScore) baseRisk += epssScore * 4;
 
@@ -35,32 +39,39 @@ function calculateRisqueRelatif(scoreCVSS: number | null, epssScore: number | nu
     LOW: 0.7,
   };
 
-  let risque = baseRisk * (severityMultiplier[severite] || 1.0);
+  const risque = baseRisk * (severityMultiplier[severite] || 1.0);
   return Math.min(Math.max(Math.round(risque * 10) / 10, 0), 10);
 }
 
-// GET - Récupérer une vulnérabilité par ID
+// GET - Récupérer une vulnérabilité
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  if (!session) {
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  }
 
-  const { id } = params;
+  const { id } = await params;
 
   const vulnerability = await prisma.vulnerabilite.findUnique({
     where: { id },
     include: {
-      scan: { 
-        select: { id: true, type: true, cible: true, dateScan: true } 
+      scan: {
+        select: { 
+          id: true, 
+          type: true, 
+          cible: true, 
+          createdAt: true 
+        }
       },
-      assigne: { 
-        select: { id: true, nom: true, prenom: true, email: true } 
+      assigne: {
+        select: { id: true, nom: true, prenom: true, email: true }
       },
       plan: true,
       historiques: {
-        orderBy: { createdAt: 'desc' },
+        orderBy: { dateModification: 'desc' },
         take: 10,
       },
     }
@@ -73,27 +84,27 @@ export async function GET(
   return NextResponse.json(vulnerability);
 }
 
-// PUT - Mise à jour avec recalcul du risque relatif
+// PUT - Mise à jour
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  if (!session) {
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  }
 
-  const { id } = params;
+  const { id } = await params;
 
   try {
     const body = await req.json();
     const validated = updateVulnerabilitySchema.parse(body);
 
-    // Vérifier si la vulnérabilité existe
     const existing = await prisma.vulnerabilite.findUnique({ where: { id } });
     if (!existing) {
       return NextResponse.json({ error: "Vulnérabilité non trouvée" }, { status: 404 });
     }
 
-    // Calcul du risque relatif
     const risqueRelatif = calculateRisqueRelatif(
       validated.scoreCVSS ?? existing.scoreCVSS,
       validated.epssScore ?? existing.epssScore,
@@ -116,9 +127,9 @@ export async function PUT(
     return NextResponse.json(updatedVulnerability);
   } catch (error: any) {
     console.error(error);
-    return NextResponse.json({ 
-      error: "Données invalides", 
-      details: error.errors || error.message 
+    return NextResponse.json({
+      error: "Données invalides",
+      details: error.errors || error.message
     }, { status: 400 });
   }
 }
@@ -126,12 +137,14 @@ export async function PUT(
 // DELETE - Soft Delete
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  if (!session) {
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  }
 
-  const { id } = params;
+  const { id } = await params;
 
   try {
     await prisma.vulnerabilite.update({
@@ -142,9 +155,9 @@ export async function DELETE(
       }
     });
 
-    return NextResponse.json({ 
-      message: "Vulnérabilité supprimée (soft delete)", 
-      id 
+    return NextResponse.json({
+      message: "Vulnérabilité supprimée (soft delete)",
+      id
     });
   } catch (error) {
     return NextResponse.json({ error: "Erreur lors de la suppression" }, { status: 500 });
