@@ -88,7 +88,7 @@ export default function RapportsContent() {
             <Calendar className="w-5 h-5 text-slate-500" />
           </div>
           <div className="w-full h-80">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={350}>
               <LineChart data={statsData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="mois" stroke="#64748b" />
@@ -105,7 +105,7 @@ export default function RapportsContent() {
         <div className="lg:col-span-4 bg-slate-950 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between">
           <h3 className="text-xl font-semibold text-white mb-4">Répartition des Rapports</h3>
           <div className="w-full h-64">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={350}>
               <PieChart>
                 <Pie data={typeRapportData} cx="50%" cy="50%" innerRadius={65} outerRadius={95} dataKey="value">
                   {typeRapportData.map((entry, index) => (

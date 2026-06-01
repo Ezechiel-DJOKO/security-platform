@@ -24,7 +24,7 @@ async function main() {
         nom: "Admin",
         prenom: "Super",
         email: "admin@test.com",
-        motDePasseHashe: "$2b$10$92IXUNpkjW0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi", // test123
+        motDePasseHashe: "$2a$10$wE99qWJ7g09XvjC7W2yDSe99F9qF8rVn9kG3J2vX3q4W8sXm5K1hG", 
         role: "ADMIN",
         actif: true
       }
@@ -36,7 +36,7 @@ async function main() {
         nom: "Dupont",
         prenom: "Marie",
         email: "superviseur@test.com",
-        motDePasseHashe: "$2b$10$92IXUNpkjW0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi", // test123
+        motDePasseHashe: "$2a$10$wE99qWJ7g09XvjC7W2yDSe99F9qF8rVn9kG3J2vX3q4W8sXm5K1hG",         
         role: "SUPERVISEUR",
         actif: true
       }
@@ -48,7 +48,7 @@ async function main() {
         nom: "Koné",
         prenom: "Jean",
         email: "auditeur@test.com",
-        motDePasseHashe: "$2b$10$92IXUNpkjW0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi", // test123
+        motDePasseHashe: "$2a$10$wE99qWJ7g09XvjC7W2yDSe99F9qF8rVn9kG3J2vX3q4W8sXm5K1hG", 
         role: "AUDITEUR",
         actif: true
       }

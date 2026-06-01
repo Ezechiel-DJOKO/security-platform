@@ -1,16 +1,28 @@
 // src/lib/prisma.ts
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
+
+const connectionString = process.env.DATABASE_URL;
+
+const pool = new Pool({
+  connectionString,
+  // Optionnel : optimisations
+  max: 10,
+  idleTimeoutMillis: 30000,
+});
+
+const adapter = new PrismaPg(pool);
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-    // 💡 Force Prisma 7 à utiliser le moteur Node.js classique sous Turbopack
-    engineType: 'library', 
-  } as any); // Le "as any" évite un conflit de types strict temporaire
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({
+  adapter,
+  log: process.env.NODE_ENV === 'development' ? ['query', 'error'] : ['error'],
+});
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+}

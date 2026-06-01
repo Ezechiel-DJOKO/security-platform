@@ -76,7 +76,7 @@ export default function DashboardContent() {
         <div className="lg:col-span-4 bg-slate-950 border border-slate-800 rounded-3xl p-6">
           <h3 className="text-lg font-semibold text-white mb-6">Évolution des Incidents & Scans</h3>
           <div className="w-full h-80">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={350}>
               <BarChart data={evolutionData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="mois" stroke="#64748b" />
@@ -93,7 +93,7 @@ export default function DashboardContent() {
         <div className="lg:col-span-3 bg-slate-950 border border-slate-800 rounded-3xl p-6 flex flex-col items-center">
           <h3 className="text-lg font-semibold text-white mb-6">Répartition de Conformité</h3>
           <div className="w-full h-[240px]">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={350}>
               <PieChart>
                 <Pie data={conformiteData} cx="50%" cy="50%" innerRadius={70} outerRadius={100} dataKey="value">
                   {conformiteData.map((entry, index) => (
