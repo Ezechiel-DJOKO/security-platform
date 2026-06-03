@@ -1,5 +1,4 @@
 "use client";
-
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 import { Shield, Eye, EyeOff, Lock, Mail, ArrowRight, AlertCircle } from "lucide-react";
@@ -45,7 +44,7 @@ export default function LoginPage() {
       </div>
 
       {/* Grid pattern overlay */}
-      <div 
+      <div
         className="absolute inset-0 opacity-[0.03]"
         style={{
           backgroundImage: `linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)`,
@@ -71,12 +70,12 @@ export default function LoginPage() {
                 Ministère du Numérique
               </p>
             </div>
-            
+
             {/* Wave separator */}
             <div className="absolute -bottom-1 left-0 right-0">
               <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto">
-                <path 
-                  d="M0 120L60 105C120 90 240 60 360 45C480 30 600 30 720 37.5C840 45 960 60 1080 67.5C1200 75 1320 75 1380 75L1440 75V120H1380C1320 120 1200 120 1080 120C960 120 840 120 720 120C600 120 480 120 360 120C240 120 120 120 60 120H0Z" 
+                <path
+                  d="M0 120L60 105C120 90 240 60 360 45C480 30 600 30 720 37.5C840 45 960 60 1080 67.5C1200 75 1320 75 1380 75L1440 75V120H1380C1320 120 1200 120 1080 120C960 120 840 120 720 120C600 120 480 120 360 120C240 120 120 120 60 120H0Z"
                   fill="rgba(255,255,255,0.8)"
                 />
               </svg>
@@ -88,7 +87,7 @@ export default function LoginPage() {
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-slate-800">Connexion sécurisée</h2>
               <p className="text-sm text-slate-500 mt-1">
-                Accédez à votre espace d'audit de sécurité
+                Accédez à votre espace d&apos;audit de sécurité
               </p>
             </div>
 

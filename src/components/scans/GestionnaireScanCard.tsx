@@ -22,7 +22,7 @@ export default function GestionnaireScanCard({ idActif, scanIdEnCours }: Gestion
       if (result.success) {
         setMessage({ type: 'success', text: `Scan ${outilSelectionne} lancé avec succès !` });
       } else {
-        setMessage({ type: 'error', text: result.error || "Une erreur est survenue." });
+        setMessage({ type: 'error', text: result.error || 'Une erreur est survenue.' });
       }
     });
   };
@@ -33,9 +33,9 @@ export default function GestionnaireScanCard({ idActif, scanIdEnCours }: Gestion
     startTransition(async () => {
       const result = await annulerScanAction(id);
       if (result.success) {
-        setMessage({ type: 'success', text: "Le scan a été marqué comme annulé." });
+        setMessage({ type: 'success', text: 'Le scan a été marqué comme annulé.' });
       } else {
-        setMessage({ type: 'error', text: result.error || "Impossible d'annuler le scan." });
+        setMessage({ type: 'error', text: result.error || 'Impossible d\'annuler le scan.' });
       }
     });
   };
@@ -46,7 +46,7 @@ export default function GestionnaireScanCard({ idActif, scanIdEnCours }: Gestion
       {!scanIdEnCours && (
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-            Sélectionner l'outil de scan
+            Sélectionner l&apos;outil de scan
           </label>
           <select
             value={outilSelectionne}
@@ -71,7 +71,7 @@ export default function GestionnaireScanCard({ idActif, scanIdEnCours }: Gestion
           >
             {isPending ? (
               <span className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-            ) : "🛑"}
+            ) : '🛑'}
             Annuler le Scan Actif
           </button>
         ) : (
@@ -82,8 +82,8 @@ export default function GestionnaireScanCard({ idActif, scanIdEnCours }: Gestion
           >
             {isPending ? (
               <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : "⚡"}
-            Démarrer l'analyse
+            ) : '⚡'}
+            Démarrer l&apos;analyse
           </button>
         )}
       </div>

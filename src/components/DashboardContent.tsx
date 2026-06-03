@@ -1,5 +1,4 @@
 'use client';
-
 import { Shield, AlertTriangle, CheckCircle, Activity } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -14,7 +13,7 @@ const kpiData = [
 const evolutionData = [
   { mois: 'Jan', incidents: 12, scans: 45 },
   { mois: 'Fév', incidents: 19, scans: 52 },
-  { mois: 'Mar', incidents: 8,  scans: 61 },
+  { mois: 'Mar', incidents: 8, scans: 61 },
   { mois: 'Avr', incidents: 15, scans: 48 },
   { mois: 'Mai', incidents: 10, scans: 67 },
 ];
@@ -25,18 +24,15 @@ const conformiteData = [
 ];
 
 export default function DashboardContent() {
-  const sessionContext = useSession();
+  const { data: session, status } = useSession();
 
-  // Sécurité pour le cycle de vie au build
-  if (!sessionContext || sessionContext.status === "loading") {
+  if (status === "loading") {
     return (
       <div className="flex items-center justify-center h-96">
         <p className="text-slate-400">Chargement du tableau de bord...</p>
       </div>
     );
   }
-
-  const { data: session } = sessionContext;
 
   if (!session) {
     return (
@@ -51,20 +47,31 @@ export default function DashboardContent() {
       <div>
         <h1 className="text-3xl font-bold text-white">Tableau de Bord</h1>
         <p className="text-slate-400 mt-2">
-          Vue d’ensemble de la sécurité de <span className="text-emerald-400 font-semibold">{session.user?.name || 'l\'organisation'}</span> • Mis à jour à l'instant
+          Vue d’ensemble de la sécurité de{' '}
+          <span className="text-emerald-400 font-semibold">
+            {session.user?.name || 'l&apos;organisation'}
+          </span>{' '}
+          • Mis à jour à l&apos;instant
         </p>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {kpiData.map((kpi, index) => (
-          <div key={index} className="bg-slate-950 border border-slate-800 rounded-3xl p-6 hover:border-slate-700 transition-all">
+          <div
+            key={index}
+            className="bg-slate-950 border border-slate-800 rounded-3xl p-6 hover:border-slate-700 transition-all"
+          >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-medium text-slate-400">{kpi.title}</h3>
               <kpi.icon className={`w-6 h-6 ${kpi.color}`} />
             </div>
             <div className="text-4xl font-bold text-white mb-1">{kpi.value}</div>
-            <p className={`text-sm flex items-center gap-1 ${kpi.change.startsWith('+') ? 'text-emerald-500' : 'text-red-500'}`}>
+            <p
+              className={`text-sm flex items-center gap-1 ${
+                kpi.change.startsWith('+') ? 'text-emerald-500' : 'text-red-500'
+              }`}
+            >
               {kpi.change} ce mois
             </p>
           </div>
@@ -74,14 +81,23 @@ export default function DashboardContent() {
       <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
         {/* Graphique Évolution */}
         <div className="lg:col-span-4 bg-slate-950 border border-slate-800 rounded-3xl p-6">
-          <h3 className="text-lg font-semibold text-white mb-6">Évolution des Incidents & Scans</h3>
+          <h3 className="text-lg font-semibold text-white mb-6">
+            Évolution des Incidents & Scans
+          </h3>
           <div className="w-full h-80">
             <ResponsiveContainer width="100%" height={350}>
               <BarChart data={evolutionData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="mois" stroke="#64748b" />
                 <YAxis stroke="#64748b" />
-                <Tooltip contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '12px', color: '#fff' }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#020617',
+                    borderColor: '#1e293b',
+                    borderRadius: '12px',
+                    color: '#fff',
+                  }}
+                />
                 <Bar dataKey="incidents" fill="#ef4444" name="Incidents" radius={6} />
                 <Bar dataKey="scans" fill="#3b82f6" name="Scans" radius={6} />
               </BarChart>
@@ -95,12 +111,26 @@ export default function DashboardContent() {
           <div className="w-full h-[240px]">
             <ResponsiveContainer width="100%" height={350}>
               <PieChart>
-                <Pie data={conformiteData} cx="50%" cy="50%" innerRadius={70} outerRadius={100} dataKey="value">
+                <Pie
+                  data={conformiteData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={70}
+                  outerRadius={100}
+                  dataKey="value"
+                >
                   {conformiteData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '12px', color: '#fff' }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#020617',
+                    borderColor: '#1e293b',
+                    borderRadius: '12px',
+                    color: '#fff',
+                  }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>

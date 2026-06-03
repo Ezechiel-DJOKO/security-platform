@@ -1,9 +1,8 @@
 'use client';
-
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { Download, Calendar, FileText, TrendingUp, Users, Shield } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const rapportsRecents = [
   { id: "RPT-202605", titre: "Rapport Mensuel de Sécurité - Mai 2026", type: "Synthèse", date: "24 Mai 2026", taille: "2.4 MB" },
@@ -16,7 +15,7 @@ const statsData = [
   { mois: 'Fév', incidents: 22, resolution: 78 },
   { mois: 'Mar', incidents: 11, resolution: 92 },
   { mois: 'Avr', incidents: 18, resolution: 81 },
-  { mois: 'Mai', incidents: 9,  resolution: 95 },
+  { mois: 'Mai', incidents: 9, resolution: 95 },
 ];
 
 const typeRapportData = [
@@ -33,7 +32,7 @@ export default function RapportsContent() {
   if (!sessionContext || sessionContext.status === "loading") {
     return (
       <div className="flex items-center justify-center h-96">
-        <p className="text-slate-400">Chargement du module d'analyse...</p>
+        <p className="text-slate-400">Chargement du module d&apos;analyse...</p>
       </div>
     );
   }
@@ -69,8 +68,8 @@ export default function RapportsContent() {
               key={p}
               onClick={() => setPeriode(p)}
               className={`px-6 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                periode === p 
-                  ? 'bg-slate-800 text-white' 
+                periode === p
+                  ? 'bg-slate-800 text-white'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -93,7 +92,14 @@ export default function RapportsContent() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="mois" stroke="#64748b" />
                 <YAxis stroke="#64748b" />
-                <Tooltip contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '12px', color: '#fff' }} />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#020617', 
+                    borderColor: '#1e293b', 
+                    borderRadius: '12px', 
+                    color: '#fff' 
+                  }} 
+                />
                 <Line type="monotone" dataKey="incidents" stroke="#ef4444" strokeWidth={3} name="Incidents" />
                 <Line type="monotone" dataKey="resolution" stroke="#22c55e" strokeWidth={3} name="Taux de Résolution (%)" />
               </LineChart>
@@ -107,12 +113,26 @@ export default function RapportsContent() {
           <div className="w-full h-64">
             <ResponsiveContainer width="100%" height={350}>
               <PieChart>
-                <Pie data={typeRapportData} cx="50%" cy="50%" innerRadius={65} outerRadius={95} dataKey="value">
+                <Pie 
+                  data={typeRapportData} 
+                  cx="50%" 
+                  cy="50%" 
+                  innerRadius={65} 
+                  outerRadius={95} 
+                  dataKey="value"
+                >
                   {typeRapportData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '12px', color: '#fff' }} />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#020617', 
+                    borderColor: '#1e293b', 
+                    borderRadius: '12px', 
+                    color: '#fff' 
+                  }} 
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -130,10 +150,12 @@ export default function RapportsContent() {
       {/* Rapports Récents */}
       <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6">
         <h3 className="text-xl font-semibold text-white mb-6">Rapports Récents</h3>
-        
         <div className="space-y-4">
           {rapportsRecents.map((rapport, index) => (
-            <div key={index} className="flex items-center justify-between bg-slate-900 hover:bg-slate-800/80 rounded-2xl p-5 transition-all group">
+            <div 
+              key={index} 
+              className="flex items-center justify-between bg-slate-900 hover:bg-slate-800/80 rounded-2xl p-5 transition-all group"
+            >
               <div className="flex items-center gap-5">
                 <div className="w-12 h-12 bg-blue-600/10 rounded-2xl flex items-center justify-center">
                   <FileText className="w-6 h-6 text-blue-500" />
@@ -143,7 +165,6 @@ export default function RapportsContent() {
                   <p className="text-sm text-slate-400">{rapport.type} • {rapport.date}</p>
                 </div>
               </div>
-
               <div className="flex items-center gap-6">
                 <span className="text-sm text-slate-500">{rapport.taille}</span>
                 <button className="flex items-center gap-2 bg-slate-800 hover:bg-blue-600 px-5 py-2.5 rounded-xl transition-all text-white">
@@ -160,7 +181,7 @@ export default function RapportsContent() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <button className="bg-slate-950 border border-slate-800 hover:border-blue-600 p-8 rounded-3xl text-left transition-all group">
           <TrendingUp className="w-10 h-10 text-blue-500 mb-4" />
-          <h4 className="text-xl font-semibold mb-2 text-white">Rapport d'Incidents</h4>
+          <h4 className="text-xl font-semibold mb-2 text-white">Rapport d&apos;Incidents</h4>
           <p className="text-slate-400 text-sm">Générer un rapport détaillé des incidents de sécurité</p>
         </button>
 

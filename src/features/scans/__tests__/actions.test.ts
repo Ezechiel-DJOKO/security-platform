@@ -3,78 +3,166 @@ import * as vulnerabilityActions from '@/actions/vulnerabilityActions';
 import { scanService } from '../service';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
-import { TypeScan, OutilScan } from '@prisma/client';
+import { TypeScan, OutilScan, Prisma } from '@prisma/client';
 
-// 1. Mock complet des dépendances applicatives
+// ── Types Prisma générés ─────────────────────────────────────────────
+
+
+type Vulnerabilite = Prisma.VulnerabiliteGetPayload<{
+  include: { plan: true };
+}>;
+
+type ScanWithRelations = Prisma.ScanGetPayload<{
+  include: { utilisateur: true; actif: true };
+}>;
+
+
+// ── Helpers pour créer des mocks partiels qui satisfont Prisma ────────
+
+function createMockScan(
+  overrides: Partial<ScanWithRelations> = {}
+): ScanWithRelations {
+  return {
+    id: 'scan-123',
+    statut: 'EN_COURS',
+    idActif: 'actif-123',
+    lancerPar: 'user-1',
+    type: 'VULNERABILITE' as TypeScan,
+    outil: 'NUCLEI' as OutilScan,
+    debut: new Date(),
+    fin: null,
+    duree: null,
+    resultats: null,
+    metadata: null,
+    deletedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    // ↓↓↓ AJOUTE CES RELATIONS ↓↓↓
+    utilisateur: {
+      id: 'user-1',
+      nom: 'Doe',
+      prenom: 'John',
+      email: 'john@example.com',
+      motDePasseHashe: 'hashed',
+      role: 'ADMIN' as const, // ou 'ANALYSTE', 'AGENT' selon ton enum RoleUtilisateur
+      actif: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+    },
+    actif: {
+      id: 'actif-123',
+      nom: 'Serveur Test',
+      type: 'SERVEUR' as const, // adapte selon ton enum TypeActif
+      adresseIP: '192.168.1.1',
+      statut: 'ACTIF' as const, // adapte selon ton enum StatutActif
+      description: null,
+      environnement: 'PRODUCTION' as const,
+      criticite: 'HAUTE' as const,
+      responsableId: 'user-1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+    },
+    ...overrides,
+  } as ScanWithRelations;
+}
+
+function createMockVuln(
+  overrides: Partial<Vulnerabilite> = {}
+): Vulnerabilite {
+  return {
+    id: 'vuln-123',
+    titre: 'Titre',
+    description: null,
+    severite: 'MEDIUM',
+    scoreCVSS: null,
+    cveId: null,
+    statut: 'OUVERTE',
+    idScan: 'scan-123',
+    assigneA: null,
+    preuve: null,
+    dateCorrection: null,
+    plan: null,
+    deletedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  } as Vulnerabilite;
+}
+
+// ── Mocks ─────────────────────────────────────────────────────────────
+
 vi.mock('../service', () => ({
-  scanService: { lancerScan: vi.fn() }
+  scanService: { lancerScan: vi.fn() },
 }));
 
 vi.mock('next-auth', () => ({
-  getServerSession: vi.fn()
+  getServerSession: vi.fn(),
 }));
 
 vi.mock('next/cache', () => ({
-  revalidatePath: vi.fn()
+  revalidatePath: vi.fn(),
 }));
 
-// 2. Mock de Prisma pour intercepter les requêtes en base de données
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     vulnerabilite: {
       findUnique: vi.fn(),
-      update: vi.fn(() => Promise.resolve({})) // Retourne une promesse pour le workflow
+      update: vi.fn(() => Promise.resolve({})),
     },
     planCorrection: {
       create: vi.fn(() => Promise.resolve({})),
-      // L'ajout de Promise.resolve({}) permet au .catch() du code source de fonctionner
-      update: vi.fn(() => Promise.resolve({})) 
+      update: vi.fn(() => Promise.resolve({})),
     },
     historiqueVulnerabilite: {
-      create: vi.fn(() => Promise.resolve({}))
-    }
-  }
+      create: vi.fn(() => Promise.resolve({})),
+    },
+  },
 }));
-
 
 describe('Vulnerability & Scanner Workflow - Full Coverage', () => {
   const mockUserId = 'user-security-1';
-  const mockVulnId = '301f2f84-9844-42f2-959d-6eb1b18fa900'; // UUID valide pour Zod
-  const mockAgentId = '401f2f84-9844-42f2-959d-6eb1b18fa900'; // UUID valide pour Zod
+  const mockVulnId = '301f2f84-9844-42f2-959d-6eb1b18fa900';
+  const mockAgentId = '401f2f84-9844-42f2-959d-6eb1b18fa900';
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Par défaut, l'utilisateur possède une session active
-    vi.mocked(getServerSession).mockResolvedValue({ user: { id: mockUserId } } as any);
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { id: mockUserId },
+    } as { user: { id: string } });
   });
 
   // ==========================================
-  // LOGIQUE DU MODULE SCANNER (Déjà validée)
+  // SCANNER
   // ==========================================
   describe('lancerNouveauScan()', () => {
-    it('devrait lancer un scan avec succès si l’utilisateur est authentifié', async () => {
-      const mockScan = { id: 'scan-123', statut: 'EN_COURS' };
-      vi.mocked(scanService.lancerScan).mockResolvedValue(mockScan as any);
+    it('devrait lancer un scan avec succès', async () => {
+      const mockScan = createMockScan({ id: 'scan-123' });
+      vi.mocked(scanService.lancerScan).mockResolvedValue(mockScan);
 
       const input = {
         idActif: 'actif-123',
         type: 'VULNERABILITE' as TypeScan,
         outil: 'NUCLEI' as OutilScan,
-        cible: 'https://example.com'
+        cible: 'https://example.com',
       };
 
       const result = await vulnerabilityActions.lancerNouveauScan(input);
       expect(result.success).toBe(true);
-      expect(scanService.lancerScan).toHaveBeenCalledWith({ ...input, userId: mockUserId });
+      expect(scanService.lancerScan).toHaveBeenCalledWith({
+        ...input,
+        userId: mockUserId,
+      });
     });
 
-    it('devrait retourner un échec si l’utilisateur n’est pas authentifié', async () => {
+    it('devrait retourner un échec si non authentifié', async () => {
       vi.mocked(getServerSession).mockResolvedValue(null);
       const result = await vulnerabilityActions.lancerNouveauScan({
         idActif: 'actif-123',
         type: 'VULNERABILITE' as TypeScan,
         outil: 'NUCLEI' as OutilScan,
-        cible: 'https://test.com'
+        cible: 'https://test.com',
       });
       expect(result.success).toBe(false);
       expect(result.error).toBe('Non authentifié');
@@ -82,107 +170,144 @@ describe('Vulnerability & Scanner Workflow - Full Coverage', () => {
   });
 
   // ==========================================
-  // NOUVEAU : TESTS POUR assignVulnerability()
+  // ASSIGN
   // ==========================================
   describe('assignVulnerability()', () => {
     const defaultPayload = {
       vulnerabiliteId: mockVulnId,
       assigneA: mockAgentId,
       priorite: 'HAUTE' as const,
-      commentaire: 'Veuillez corriger cette faille rapidement.'
+      commentaire: 'Veuillez corriger cette faille rapidement.',
     };
 
-    it('devrait assigner la vulnérabilité et créer un plan de correction s’il n’existe pas', async () => {
-      // Simulation : La vulnérabilité existe mais n'a pas encore de plan
-      vi.mocked(prisma.vulnerabilite.findUnique).mockResolvedValue({
+    it('devrait assigner et créer un plan', async () => {
+      const mockVuln = createMockVuln({
         id: mockVulnId,
         statut: 'OUVERTE',
-        plan: null
-      } as any);
-      vi.mocked(prisma.vulnerabilite.update).mockResolvedValue({ id: mockVulnId } as any);
+        plan: null,
+      });
+      vi.mocked(prisma.vulnerabilite.findUnique).mockResolvedValue(mockVuln);
+      vi.mocked(prisma.vulnerabilite.update).mockResolvedValue(
+        createMockVuln({ id: mockVulnId })
+      );
 
       const result = await vulnerabilityActions.assignVulnerability(defaultPayload);
 
       expect(result.success).toBe(true);
       expect(prisma.vulnerabilite.update).toHaveBeenCalledWith({
         where: { id: mockVulnId },
-        data: { assigneA: mockAgentId, statut: 'EN_COURS' }
+        data: { assigneA: mockAgentId, statut: 'EN_COURS' },
       });
       expect(prisma.planCorrection.create).toHaveBeenCalled();
       expect(prisma.historiqueVulnerabilite.create).toHaveBeenCalled();
     });
 
-    it('devrait mettre à jour le plan de correction s’il existe déjà', async () => {
-      // Simulation : La vulnérabilité existe et possède déjà un plan
-      vi.mocked(prisma.vulnerabilite.findUnique).mockResolvedValue({
+    it('devrait mettre à jour le plan existant', async () => {
+      const mockVuln = createMockVuln({
         id: mockVulnId,
         statut: 'OUVERTE',
-        plan: { id: 'plan-existant' }
-      } as any);
+        plan: {
+          id: 'plan-existant',
+          idVulnerabilite: mockVulnId,
+          statut: 'A_FAIRE',
+          assigneA: null,
+          description: null,
+          priorite: 'MOYENNE',
+          dateDebut: null,
+          dateFinPrevue: null,
+          dateFinReelle: null,
+          preuve: null,
+          commentaire: '',
+          deletedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+      vi.mocked(prisma.vulnerabilite.findUnique).mockResolvedValue(mockVuln);
 
       await vulnerabilityActions.assignVulnerability(defaultPayload);
 
       expect(prisma.planCorrection.update).toHaveBeenCalledWith({
         where: { idVulnerabilite: mockVulnId },
-        data: expect.objectContaining({ statut: 'A_FAIRE', assigneA: mockAgentId })
+        data: expect.objectContaining({
+          statut: 'A_FAIRE',
+          assigneA: mockAgentId,
+        }),
       });
     });
 
-    it('devrait échouer si la vulnérabilité est introuvable', async () => {
+    it('devrait échouer si introuvable', async () => {
       vi.mocked(prisma.vulnerabilite.findUnique).mockResolvedValue(null);
-      await expect(vulnerabilityActions.assignVulnerability(defaultPayload)).rejects.toThrow('Vulnérabilité non trouvée');
+      await expect(
+        vulnerabilityActions.assignVulnerability(defaultPayload)
+      ).rejects.toThrow('Vulnérabilité non trouvée');
     });
   });
 
   // ==========================================
-  // NOUVEAU : TESTS POUR markAsCorrected()
+  // MARK AS CORRECTED
   // ==========================================
   describe('markAsCorrected()', () => {
     const payload = {
       vulnerabiliteId: mockVulnId,
       preuve: 'https://github.com',
-      commentaire: 'Fermeture du port SSH non sécurisé.'
+      commentaire: 'Fermeture du port SSH non sécurisé.',
     };
 
-    it('devrait passer le statut à CORRIGEE et clore le plan associé', async () => {
-      vi.mocked(prisma.vulnerabilite.findUnique).mockResolvedValue({ id: mockVulnId, statut: 'EN_COURS' } as any);
-      vi.mocked(prisma.vulnerabilite.update).mockResolvedValue({ id: mockVulnId } as any);
+    it('devrait passer à CORRIGEE', async () => {
+      const mockVuln = createMockVuln({
+        id: mockVulnId,
+        statut: 'EN_COURS',
+      });
+      vi.mocked(prisma.vulnerabilite.findUnique).mockResolvedValue(mockVuln);
+      vi.mocked(prisma.vulnerabilite.update).mockResolvedValue(
+        createMockVuln({ id: mockVulnId })
+      );
 
       const result = await vulnerabilityActions.markAsCorrected(payload);
 
       expect(result.success).toBe(true);
       expect(prisma.vulnerabilite.update).toHaveBeenCalledWith({
         where: { id: mockVulnId },
-        data: expect.objectContaining({ statut: 'CORRIGEE', preuve: payload.preuve })
+        data: expect.objectContaining({
+          statut: 'CORRIGEE',
+          preuve: payload.preuve,
+        }),
       });
       expect(prisma.planCorrection.update).toHaveBeenCalledWith({
         where: { idVulnerabilite: mockVulnId },
-        data: expect.objectContaining({ statut: 'TERMINE' })
+        data: expect.objectContaining({ statut: 'TERMINE' }),
       });
     });
   });
 
   // ==========================================
-  // NOUVEAU : TESTS POUR validateFix()
+  // VALIDATE FIX
   // ==========================================
   describe('validateFix()', () => {
-    it('devrait clore définitivement le ticket à l’état VERIFIEE', async () => {
-      vi.mocked(prisma.vulnerabilite.findUnique).mockResolvedValue({ id: mockVulnId, statut: 'CORRIGEE' } as any);
-      vi.mocked(prisma.vulnerabilite.update).mockResolvedValue({ id: mockVulnId } as any);
+    it('devrait clore à VERIFIEE', async () => {
+      const mockVuln = createMockVuln({
+        id: mockVulnId,
+        statut: 'CORRIGEE',
+      });
+      vi.mocked(prisma.vulnerabilite.findUnique).mockResolvedValue(mockVuln);
+      vi.mocked(prisma.vulnerabilite.update).mockResolvedValue(
+        createMockVuln({ id: mockVulnId })
+      );
 
       const result = await vulnerabilityActions.validateFix({
         vulnerabiliteId: mockVulnId,
-        commentaire: 'Validation après contre-audit Nuclei.'
+        commentaire: 'Validation après contre-audit Nuclei.',
       });
 
       expect(result.success).toBe(true);
       expect(prisma.vulnerabilite.update).toHaveBeenCalledWith({
         where: { id: mockVulnId },
-        data: { statut: 'VERIFIEE' }
+        data: { statut: 'VERIFIEE' },
       });
       expect(prisma.planCorrection.update).toHaveBeenCalledWith({
         where: { idVulnerabilite: mockVulnId },
-        data: { statut: 'VERIFIE' }
+        data: { statut: 'VERIFIE' },
       });
     });
   });

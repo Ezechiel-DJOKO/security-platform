@@ -27,7 +27,7 @@ function calculateRisqueRelatif(scoreCVSS: number | null, epssScore: number | nu
   let baseRisk = scoreCVSS;
   if (epssScore) baseRisk += epssScore * 4;
   const severityMultiplier: Record<string, number> = { CRITICAL: 1.4, HIGH: 1.2, MEDIUM: 1.0, LOW: 0.7 };
-  let risque = baseRisk * (severityMultiplier[severite] || 1.0);
+  const risque = baseRisk * (severityMultiplier[severite] || 1.0);
   return Math.min(Math.max(Math.round(risque * 10) / 10, 0), 10);
 }
 

@@ -5,7 +5,7 @@ export async function logAuditEvent(
   userId: string,
   action: string,
   resource: string,
-  details?: Record<string, any>
+  details?: Record<string, unknown>
 ) {
   try {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
@@ -24,7 +24,7 @@ export async function logAuditEvent(
     if (!response.ok) {
       console.warn(`[AUDIT] Échec du log: ${action}`);
     }
-  } catch (error) {
+  } catch (_error: unknown) {
     console.log(`[AUDIT FALLBACK] ${action} | User: ${userId} | ${resource}`, details);
   }
 }

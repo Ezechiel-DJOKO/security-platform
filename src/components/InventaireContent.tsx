@@ -1,5 +1,4 @@
 'use client';
-
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { Plus, Search, Edit2, Trash2 } from 'lucide-react';
@@ -31,13 +30,14 @@ const statutColors = {
 export default function InventaireContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatut, setFilterStatut] = useState<string>('Tous');
+
   const sessionContext = useSession();
 
-  // Bloque l'exécution prématurée durant l'évaluation au build
+  // Bloque l'exécution prématurée durant le build
   if (!sessionContext || sessionContext.status === "loading") {
     return (
       <div className="flex items-center justify-center h-96">
-        <p className="text-slate-400">Chargement de l'inventaire des actifs...</p>
+        <p className="text-slate-400">Chargement de l&apos;inventaire des actifs...</p>
       </div>
     );
   }
@@ -47,19 +47,19 @@ export default function InventaireContent() {
   if (!session) {
     return (
       <div className="text-center py-12 text-amber-500">
-        Vous devez être connecté pour accéder à l'inventaire.
+        Vous devez être connecté pour accéder à l&apos;inventaire.
       </div>
     );
   }
 
-  const filteredActifs = actifsData.filter(actif => {
-    const matchesSearch = 
+  const filteredActifs = actifsData.filter((actif) => {
+    const matchesSearch =
       actif.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
       actif.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       actif.responsable.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     const matchesFilter = filterStatut === 'Tous' || actif.statut === filterStatut;
-    
+
     return matchesSearch && matchesFilter;
   });
 
@@ -109,7 +109,7 @@ export default function InventaireContent() {
             <thead>
               <tr className="border-b border-slate-800 text-slate-400 text-sm">
                 <th className="px-6 py-5 text-left font-medium">ID</th>
-                <th className="px-6 py-5 text-left font-medium">Nom de l’Actif</th>
+                <th className="px-6 py-5 text-left font-medium">Nom de l&apos;Actif</th>
                 <th className="px-6 py-5 text-left font-medium">Type</th>
                 <th className="px-6 py-5 text-left font-medium">Responsable</th>
                 <th className="px-6 py-5 text-left font-medium">Statut de Risque</th>
@@ -125,16 +125,13 @@ export default function InventaireContent() {
                   <td className="px-6 py-5 font-medium text-white">{actif.nom}</td>
                   <td className="px-6 py-5 text-slate-400">{actif.type}</td>
                   <td className="px-6 py-5 text-slate-300">{actif.responsable}</td>
-                  
                   <td className="px-6 py-5">
                     <span className={`inline-block px-4 py-1 text-xs font-medium rounded-full border ${statutColors[actif.statut]}`}>
                       {actif.statut}
                     </span>
                   </td>
-                  
                   <td className="px-6 py-5 text-sm text-slate-400">{actif.dernierScan}</td>
                   <td className="px-6 py-5 text-emerald-400 font-medium">{actif.valeur}</td>
-                  
                   <td className="px-6 py-5">
                     <div className="flex items-center justify-center gap-3">
                       <button className="p-2 hover:bg-slate-800 rounded-xl text-blue-400 hover:text-blue-500 transition-colors">
