@@ -1,0 +1,40 @@
+# .github/workflows/security-scan.yml
+
+name: Security Scan
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:  # Permet de lancer manuellement
+
+jobs:
+  nuclei-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Installer Nuclei
+        run: |
+          wget -q https://github.com/projectdiscovery/nuclei/releases/download/v3.8.0/nuclei_3.8.0_linux_amd64.zip
+          unzip nuclei_3.8.0_linux_amd64.zip -d /tmp/
+          sudo mv /tmp/nuclei /usr/local/bin/
+          nuclei -version
+
+      - name: Mettre à jour les templates Nuclei
+        run: nuclei -ut
+
+      - name: Scan Nuclei
+        run: |
+          mkdir -p python-scanner/rapports
+          nuclei -u https://badssl.com -se python-scanner/rapports/nuclei-results.sarif
+          ls -la python-scanner/rapports/
+
+      - name: Uploader SARIF (v4)
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: python-scanner/rapports/nuclei-results.sarif
