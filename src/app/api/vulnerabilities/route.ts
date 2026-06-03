@@ -19,95 +19,81 @@ const vulnerabilitySchema = z.object({
   preuve: z.string().optional(),
   impact: z.string().optional(),
   recommandation: z.string().optional(),
-  tags: z.array(z.string()).optional(), // noms des tags
+  tags: z.array(z.string()).optional(),
 });
 
-// Calcul du Risque Relatif (logique métier)
 function calculateRisqueRelatif(scoreCVSS: number | null, epssScore: number | null, severite: string): number {
   if (!scoreCVSS) return 0;
-
   let baseRisk = scoreCVSS;
-
-  // Pondération EPSS (probabilité d'exploitation)
-  if (epssScore) {
-    baseRisk += epssScore * 4; // max +4 points
-  }
-
-  // Bonus criticité selon sévérité
-  const severityMultiplier = {
-    CRITICAL: 1.4,
-    HIGH: 1.2,
-    MEDIUM: 1.0,
-    LOW: 0.7
-  }[severite] || 1.0;
-
-  let risque = baseRisk * severityMultiplier;
-
-  // Normalisation entre 0 et 10
+  if (epssScore) baseRisk += epssScore * 4;
+  const severityMultiplier: Record<string, number> = { CRITICAL: 1.4, HIGH: 1.2, MEDIUM: 1.0, LOW: 0.7 };
+  let risque = baseRisk * (severityMultiplier[severite] || 1.0);
   return Math.min(Math.max(Math.round(risque * 10) / 10, 0), 10);
 }
 
-// GET - Inventaire centralisé avec filtres puissants
+// GET
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-
   const page = parseInt(searchParams.get('page') || '1');
   const limit = parseInt(searchParams.get('limit') || '20');
   const skip = (page - 1) * limit;
 
-  const filters: any = {};
+  const where: any = {};
 
-  // Filtres basiques
-  if (searchParams.get('severite')) filters.severite = searchParams.get('severite')?.split(',');
-  if (searchParams.get('statut')) filters.statut = searchParams.get('statut')?.split(',');
-  if (searchParams.get('assigneA')) filters.assigneA = searchParams.get('assigneA');
-  if (searchParams.get('cveId')) filters.cveId = { contains: searchParams.get('cveId') };
-  if (searchParams.get('idScan')) filters.idScan = searchParams.get('idScan');
+  if (searchParams.get('severite')) {
+    where.severite = { in: searchParams.get('severite')!.split(',') };
+  }
+  if (searchParams.get('statut')) {
+    where.statut = { in: searchParams.get('statut')!.split(',') };
+  }
+  if (searchParams.get('assigneA')) where.assigneA = searchParams.get('assigneA');
+  if (searchParams.get('idScan')) where.idScan = searchParams.get('idScan');
+  if (searchParams.get('cveId')) where.cveId = { contains: searchParams.get('cveId') };
 
-  // Recherche texte
   const search = searchParams.get('search');
   if (search) {
-    filters.OR = [
+    where.OR = [
       { titre: { contains: search, mode: 'insensitive' } },
       { description: { contains: search, mode: 'insensitive' } },
       { cveId: { contains: search, mode: 'insensitive' } },
     ];
   }
 
-  // Tags
   const tags = searchParams.get('tags')?.split(',');
-  if (tags) {
-    filters.tags = { some: { tag: { nom: { in: tags } } } };
+  if (tags && tags.length > 0) {
+    where.tags = { some: { tag: { nom: { in: tags } } } };
   }
 
-  // Score CVSS
+  // Score range
   const minScore = searchParams.get('minScore');
   const maxScore = searchParams.get('maxScore');
   if (minScore || maxScore) {
-    filters.scoreCVSS = {};
-    if (minScore) filters.scoreCVSS.gte = parseFloat(minScore);
-    if (maxScore) filters.scoreCVSS.lte = parseFloat(maxScore);
+    where.scoreCVSS = {};
+    if (minScore) where.scoreCVSS.gte = parseFloat(minScore);
+    if (maxScore) where.scoreCVSS.lte = parseFloat(maxScore);
   }
 
-  const vulnerabilities = await prisma.vulnerabilite.findMany({
-    where: filters,
-    include: {
-      scan: { select: { id: true, type: true, cible: true } },
-      assigne: { select: { id: true, nom: true, prenom: true } },
-      tags: { include: { tag: true } },
-    },
-    orderBy: [
-      { risqueRelatif: 'desc' },
-      { scoreCVSS: 'desc' },
-    ],
-    skip,
-    take: limit,
-  });
-
-  const total = await prisma.vulnerabilite.count({ where: filters });
+  const [vulnerabilities, total] = await Promise.all([
+    prisma.vulnerabilite.findMany({
+      where,
+      include: {
+        scan: { select: { id: true, type: true, cible: true, outil: true } },
+        assigne: { select: { id: true, nom: true, prenom: true } },
+        tags: { include: { tag: true } },
+      },
+      orderBy: [
+        { risqueRelatif: 'desc' },
+        { scoreCVSS: 'desc' },
+        { dateDecouverte: 'desc' }
+      ],
+      skip,
+      take: limit,
+    }),
+    prisma.vulnerabilite.count({ where }),
+  ]);
 
   return NextResponse.json({
     data: vulnerabilities,
@@ -115,7 +101,7 @@ export async function GET(req: NextRequest) {
   });
 }
 
-// POST - Création avec tags + calcul risque relatif
+// POST (ton code était bon, juste petite optimisation)
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
@@ -135,15 +121,10 @@ export async function POST(req: NextRequest) {
         ...validated,
         risqueRelatif,
         tags: validated.tags ? {
-          create: validated.tags.map(tagName => ({
-            tag: {
-              connectOrCreate: {
-                where: { nom: tagName },
-                create: { nom: tagName }
-              }
-            }
+          create: validated.tags.map(name => ({
+            tag: { connectOrCreate: { where: { nom: name }, create: { nom: name } } }
           }))
-        } : undefined
+        } : undefined,
       },
       include: {
         scan: true,
@@ -154,6 +135,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(vulnerability, { status: 201 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    console.error(error);
+    return NextResponse.json({ error: error.errors || error.message }, { status: 400 });
   }
 }
