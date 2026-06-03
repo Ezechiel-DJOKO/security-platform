@@ -4,16 +4,31 @@ import { Eye, UserPlus, RefreshCw } from 'lucide-react';
 import { markAsCorrected } from '@/actions/vulnerabilityActions';
 import VulnerabilityDetailModal from './VulnerabilityDetailModal';
 import AssignModal from './AssignModal';
+import { Severite } from '@prisma/client';
 
-// Interface pour typer les vulnérabilités
 interface Vulnerability {
   id: string;
-  cveId?: string;
+  cveId: string | null;
   titre: string;
-  severite?: string;
-  scoreCVSS?: number;
-  risqueRelatif?: number;
-  statut?: string;
+  description: string | null;
+  severite: Severite | null;
+  scoreCVSS: number | null;
+  risqueRelatif: number | null;
+  statut: string;
+  recommandation: string | null;
+}
+
+// Type de réponse brute de l'API
+interface ApiVulnerability {
+  id: string;
+  cveId?: string | null;
+  titre: string;
+  description?: string | null;
+  severite?: Severite | null;
+  scoreCVSS?: number | null;
+  risqueRelatif?: number | null;
+  statut?: string | null;
+  recommandation?: string | null;
 }
 
 export function VulnerabilitiesTable() {
@@ -26,10 +41,8 @@ export function VulnerabilitiesTable() {
   const [showDetail, setShowDetail] = useState(false);
   const [showAssign, setShowAssign] = useState(false);
 
-  // Ref pour éviter le fetch au montage initial si déjà chargé
   const isFirstRender = useRef(true);
 
-  // Fonction fetch avec useCallback + typage
   const fetchVulnerabilities = useCallback(async () => {
     setLoading(true);
     try {
@@ -39,9 +52,22 @@ export function VulnerabilitiesTable() {
       if (statutFilter) params.append('statut', statutFilter);
 
       const res = await fetch(`/api/vulnerabilities?${params}`);
-      const data: { data?: Vulnerability[] } = await res.json();
+      const data: { data?: ApiVulnerability[] } = await res.json();
 
-      setVulnerabilities(data.data ?? []);
+      // ← MAPPING ICI
+      const mappedVulns: Vulnerability[] = (data.data ?? []).map((v) => ({
+        id: v.id,
+        cveId: v.cveId ?? null,
+        titre: v.titre,
+        description: v.description ?? null,
+        severite: v.severite ?? null,
+        scoreCVSS: v.scoreCVSS ?? null,
+        risqueRelatif: v.risqueRelatif ?? null,
+        statut: v.statut ?? 'OUVERTE',
+        recommandation: v.recommandation ?? null,
+      }));
+
+      setVulnerabilities(mappedVulns);
     } catch (error) {
       console.error('Erreur de chargement:', error);
     } finally {
@@ -49,7 +75,6 @@ export function VulnerabilitiesTable() {
     }
   }, [search, severiteFilter, statutFilter]);
 
-  // useEffect corrigé : pas de setState synchrone direct
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
@@ -57,7 +82,6 @@ export function VulnerabilitiesTable() {
       return;
     }
 
-    // Debounce pour éviter les re-renders en cascade lors de la saisie
     const timer = setTimeout(() => {
       fetchVulnerabilities();
     }, 300);
@@ -72,16 +96,19 @@ export function VulnerabilitiesTable() {
     }
   };
 
-  const getSeveriteClass = (severite: string = '') => {
-    switch (severite.toUpperCase()) {
+  const getSeveriteClass = (severite: Severite | null) => {
+    if (!severite) return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800';
+    switch (severite) {
       case 'CRITICAL':
         return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 font-bold border border-red-200 dark:border-red-800';
       case 'HIGH':
         return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 font-semibold border border-orange-200 dark:border-orange-800';
       case 'MEDIUM':
         return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800';
-      default:
+      case 'LOW':
         return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800';
+      default:
+        return 'bg-slate-100 text-slate-800 dark:bg-slate-900/30 dark:text-slate-400 border border-slate-200 dark:border-slate-800';
     }
   };
 

@@ -1,29 +1,20 @@
-// src/lib/prisma.ts
 import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
-
-const connectionString = process.env.DATABASE_URL;
-
-if (!connectionString) {
-  throw new Error('DATABASE_URL is not defined in .env file');
-}
-
-const pool = new Pool({
-  connectionString,
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-});
-
-const adapter = new PrismaPg(pool);
+import { PrismaPg } from '@prisma/adapter-pg';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+// 1. Initialiser le pool natif de votre base de données PostgreSQL
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// 2. Créer l'adaptateur Driver requis par Prisma 7
+const adapter = new PrismaPg(pool);
+
+// 3. Injecter l'adaptateur dans le constructeur
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({
-  adapter,
+  adapter, // <-- Indispensable pour éliminer l'erreur de configuration vide
   log: process.env.NODE_ENV === 'development' 
     ? ['query', 'error', 'warn'] 
     : ['error'],
