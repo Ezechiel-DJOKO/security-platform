@@ -1,15 +1,15 @@
 // src/app/scans/page.tsx
+export const dynamic = 'force-dynamic';
+
 import GestionnaireScanCard from '@/components/scans/GestionnaireScanCard';
 import { prisma } from '@/lib/prisma';
- 
 
 export default async function ScansPage() {
-  // 1. Récupération des actifs depuis PostgreSQL (Server-side)
   const actifs = await prisma.actif.findMany({
     include: {
       scans: {
         orderBy: { debut: 'desc' },
-        take: 1, // On récupère le dernier scan pour voir s'il est en cours
+        take: 1,
       }
     }
   });
@@ -30,7 +30,6 @@ export default async function ScansPage() {
                 <p className="text-sm text-gray-500">{actif.adresseIP || actif.hostname}</p>
               </div>
 
-              {/* 2. ON INJECTE LE COMPOSANT DU POINT 2 ICI 👇 */}
               <GestionnaireScanCard 
                 idActif={actif.id} 
                 scanIdEnCours={estEnCours ? dernierScan.id : undefined} 
