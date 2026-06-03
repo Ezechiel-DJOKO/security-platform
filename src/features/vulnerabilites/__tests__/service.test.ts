@@ -2,8 +2,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { vulnerabiliteService } from './service';
 import { vulnerabiliteRepository } from '../repository';
-import { StatutVulnerabilite, Priorite } from '@prisma/client';
-
 // Mocks
 vi.mock('../repository', () => ({
   vulnerabiliteRepository: {

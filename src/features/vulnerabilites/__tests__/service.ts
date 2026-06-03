@@ -1,10 +1,27 @@
 // src/features/vulnerabilites/service.ts
-import { vulnerabiliteRepository } from '../repository'; 
+import { vulnerabiliteRepository } from '../repository';
 import { StatutVulnerabilite, Priorite, Severite } from '@prisma/client';
+
+// ─── Types ───────────────────────────────────────────────
+
+interface ResultatScan {
+  cveId?: string;
+  titre?: string;
+  name?: string;
+  description?: string;
+  severite?: Severite;
+  scoreCVSS?: number;
+  vecteurCVSS?: string;
+  preuve?: string;
+  matchedAt?: string;
+  recommandation?: string;
+}
+
+// ─── Service ─────────────────────────────────────────────
 
 export const vulnerabiliteService = {
 
-  async creerVulnerabilites(scanId: string, resultats: any[]) {
+  async creerVulnerabilites(scanId: string, resultats: ResultatScan[]) {
     if (!resultats || resultats.length === 0) return { count: 0 };
 
     const vulnerabilites = resultats.map(v => ({

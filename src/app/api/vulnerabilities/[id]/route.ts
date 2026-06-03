@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { z } from 'zod';
+import { error } from 'console';
 
 // Schéma de validation
 const updateVulnerabilitySchema = z.object({
@@ -125,11 +126,11 @@ export async function PUT(
     });
 
     return NextResponse.json(updatedVulnerability);
-  } catch (error: any) {
-    console.error(error);
+  } catch (e) {
+    console.error(e);
     return NextResponse.json({
       error: "Données invalides",
-      details: error.errors || error.message
+      details: error.errors || error.messaage
     }, { status: 400 });
   }
 }

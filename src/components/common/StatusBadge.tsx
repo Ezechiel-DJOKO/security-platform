@@ -1,12 +1,5 @@
 // src/components/common/StatusBadge.tsx
-import { ReactNode } from "react";
 
-interface StatusBadgeProps {
-  status: string;
-  variant?: "severity" | "compliance" | "default";
-}
-
-// src/components/common/StatusBadge.tsx
 export function StatusBadge({ status, variant = "default" }: { 
   status: string; 
   variant?: "severity" | "compliance" | "default" 

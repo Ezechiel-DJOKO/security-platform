@@ -12,7 +12,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ status: 'error', message: 'Paramètres manquants' }, { status: 400 });
     }
 
-    // 1. Recherche ou création de l'actif avec une gestion d'erreur block par block
     let actif = await prisma.actif.findFirst({
       where: {
         OR: [
@@ -33,17 +32,16 @@ export async function POST(request: Request) {
         },
       });
     } else {
-      // Mettre à jour la date du dernier scan si le champ existe
       try {
         await prisma.actif.update({
           where: { id: actif.id },
           data: { updatedAt: new Date() }
         });
-      } catch (e) {}
+      } catch (_e) {  // ✅ CORRIGÉ : e → _e (warning ESLint variable inutilisée)
+        // Silencieux
+      }
     }
 
-    // 2. Insertion du Scan global (liaison obligatoire avec l'utilisateur admin système)
-    // On récupère le premier utilisateur disponible pour éviter les conflits de clé étrangère
     const defaultUser = await prisma.utilisateur.findFirst();
     if (!defaultUser) {
       return NextResponse.json({ status: 'error', message: 'Aucun utilisateur trouvé en base pour assigner le scan' }, { status: 400 });
@@ -61,7 +59,6 @@ export async function POST(request: Request) {
       },
     });
 
-    // 3. Extraction et insertion sécurisée des vulnérabilités
     let totalInserts = 0;
 
     if (scanner === 'grype' && data?.matches) {
@@ -118,8 +115,9 @@ export async function POST(request: Request) {
       inserted_vulnerabilities: totalInserts 
     });
 
-  } catch (error: any) {
-    console.error("❌ ERREUR API IMPORT :", error);
-    return NextResponse.json({ status: 'error', message: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Erreur inconnue lors de l\'import';
+    console.error("❌ ERREUR API IMPORT :", message);
+    return NextResponse.json({ status: 'error', message: message }, { status: 500 });
   }
 }

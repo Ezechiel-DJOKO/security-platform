@@ -1,9 +1,61 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { authOptions } from '../auth';
-import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+import type { JWT } from 'next-auth/jwt';
+import type { Session } from 'next-auth';
+
+// Types pour les mocks
+type MockUtilisateur = {
+  id: string;
+  email: string;
+  prenom: string;
+  nom: string;
+  role: string;
+  actif: boolean;
+  motDePasseHashe: string;
+};
+
+type MockPrisma = {
+  utilisateur: {
+    findUnique: ReturnType<typeof vi.fn>;
+  };
+};
+
+type MockAudit = {
+  logAuditEvent: ReturnType<typeof vi.fn>;
+};
+
+// Type pour les credentials
+type Credentials = {
+  email: string;
+  password: string;
+};
+
+// Type pour la requête authorize
+type AuthorizeReq = {
+  headers?: Record<string, string | string[] | undefined>;
+};
+
+// Type du retour authorize
+type AuthorizeResult = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+};
 
 // Mocks
-vi.mock('bcryptjs');
+vi.mock('crypto', () => ({
+  default: {
+    timingSafeEqual: vi.fn(),
+    createHash: vi.fn(() => ({
+      update: vi.fn().mockReturnThis(),
+      digest: vi.fn().mockReturnValue('hashedpassword'),
+    })),
+    randomBytes: vi.fn(),
+  },
+}));
+
 vi.mock('../prisma', () => ({
   prisma: {
     utilisateur: {
@@ -28,52 +80,72 @@ describe('Authentication Module (auth.ts)', () => {
   });
 
   test('CredentialsProvider devrait être configuré', () => {
-    const provider = authOptions.providers![0] as any;
-    expect(provider.options.name).toBe('credentials');
+    const provider = authOptions.providers![0];
+    expect(provider.options?.name).toBe('credentials');
   });
 
   describe('authorize() function', () => {
-    const authorize = (authOptions.providers![0] as any).options.authorize;
+    // Récupération sécurisée de la fonction authorize
+    const getAuthorize = () => {
+      const provider = authOptions.providers![0];
+      return provider.options?.authorize as (
+        credentials: Credentials | undefined,
+        req: AuthorizeReq | undefined
+      ) => Promise<AuthorizeResult | null>;
+    };
 
     test('devrait retourner null si email ou password manquant', async () => {
+      const authorize = getAuthorize();
       const result = await authorize({}, {});
       expect(result).toBeNull();
     });
 
     test('devrait retourner null si utilisateur non trouvé', async () => {
-      const { prisma } = await import('../prisma');
-      (prisma.utilisateur.findUnique as any).mockResolvedValue(null);
+      const { prisma } = await import('../prisma') as unknown as { prisma: MockPrisma };
+      prisma.utilisateur.findUnique.mockResolvedValue(null);
 
-      const result = await authorize({ email: 'test@test.com', password: '123' }, {});
+      const authorize = getAuthorize();
+      const result = await authorize(
+        { email: 'test@test.com', password: '123' },
+        {}
+      );
       expect(result).toBeNull();
     });
 
     test('devrait retourner null si utilisateur inactif', async () => {
-      const { prisma } = await import('../prisma');
-      (prisma.utilisateur.findUnique as any).mockResolvedValue({ actif: false });
+      const { prisma } = await import('../prisma') as unknown as { prisma: MockPrisma };
+      prisma.utilisateur.findUnique.mockResolvedValue({ actif: false });
 
-      const result = await authorize({ email: 'test@test.com', password: '123' }, {});
+      const authorize = getAuthorize();
+      const result = await authorize(
+        { email: 'test@test.com', password: '123' },
+        {}
+      );
       expect(result).toBeNull();
     });
 
     test('devrait retourner null si mot de passe invalide', async () => {
-      const { prisma } = await import('../prisma');
-      (prisma.utilisateur.findUnique as any).mockResolvedValue({
+      const { prisma } = await import('../prisma') as unknown as { prisma: MockPrisma };
+      prisma.utilisateur.findUnique.mockResolvedValue({
         id: '1',
         actif: true,
         motDePasseHashe: 'hashed',
       });
-      (bcrypt.compare as any).mockResolvedValue(false);
+      (crypto.timingSafeEqual as ReturnType<typeof vi.fn>).mockReturnValue(false);
 
-      const result = await authorize({ email: 'test@test.com', password: 'wrong' }, {});
+      const authorize = getAuthorize();
+      const result = await authorize(
+        { email: 'test@test.com', password: 'wrong' },
+        {}
+      );
       expect(result).toBeNull();
     });
 
     test('devrait réussir la connexion avec un utilisateur valide', async () => {
-      const { prisma } = await import('../prisma');
-      const { logAuditEvent } = await import('../audit');
+      const { prisma } = await import('../prisma') as unknown as { prisma: MockPrisma };
+      const { logAuditEvent } = await import('../audit') as unknown as MockAudit;
 
-      const mockUser = {
+      const mockUser: MockUtilisateur = {
         id: 'user-123',
         email: 'admin@exemple.com',
         prenom: 'Jean',
@@ -83,10 +155,11 @@ describe('Authentication Module (auth.ts)', () => {
         motDePasseHashe: 'hashedpassword'
       };
 
-      (prisma.utilisateur.findUnique as any).mockResolvedValue(mockUser);
-      (bcrypt.compare as any).mockResolvedValue(true);
-      (logAuditEvent as any).mockResolvedValue(undefined);
+      prisma.utilisateur.findUnique.mockResolvedValue(mockUser);
+      (crypto.timingSafeEqual as ReturnType<typeof vi.fn>).mockReturnValue(true);
+      logAuditEvent.mockResolvedValue(undefined);
 
+      const authorize = getAuthorize();
       const result = await authorize(
         { email: 'admin@exemple.com', password: 'password123' },
         { headers: { 'x-forwarded-for': '192.168.1.1', 'user-agent': 'Mozilla/5.0' } }
@@ -103,10 +176,12 @@ describe('Authentication Module (auth.ts)', () => {
 
   describe('Callbacks', () => {
     test('jwt callback devrait ajouter id et role', async () => {
-      const jwtCallback = (authOptions.callbacks as any).jwt;
+      const jwtCallback = authOptions.callbacks?.jwt as (
+        params: { token: JWT; user?: { id: string; role: string } }
+      ) => Promise<JWT>;
       
       const result = await jwtCallback({
-        token: {},
+        token: {} as JWT,
         user: { id: '123', role: 'AUDITEUR' }
       });
 
@@ -115,10 +190,18 @@ describe('Authentication Module (auth.ts)', () => {
     });
 
     test('session callback devrait enrichir la session', async () => {
-      const sessionCallback = (authOptions.callbacks as any).session;
+      const sessionCallback = authOptions.callbacks?.session as (
+        params: { session: Session; token: JWT }
+      ) => Promise<Session>;
       
-      const session = { user: {} as any };
-      const token = { id: '456', role: 'SUPERVISEUR' };
+      const session = { 
+        user: {} 
+      } as Session & { user: { id?: string; role?: string } };
+      
+      const token = { 
+        id: '456', 
+        role: 'SUPERVISEUR' 
+      } as unknown as JWT;
 
       const result = await sessionCallback({ session, token });
 
@@ -126,16 +209,21 @@ describe('Authentication Module (auth.ts)', () => {
       expect(result.user.role).toBe('SUPERVISEUR');
     });
   });
-});
 
   describe('Gestion des erreurs et cas limites', () => {
-    const authorize = (authOptions.providers![0] as any).options.authorize;
+    const getAuthorize = () => {
+      const provider = authOptions.providers![0];
+      return provider.options?.authorize as (
+        credentials: Credentials | undefined,
+        req: AuthorizeReq | undefined
+      ) => Promise<AuthorizeResult | null>;
+    };
 
     test('devrait capturer les erreurs du log audit sans bloquer la connexion', async () => {
-      const { prisma } = await import('../prisma');
-      const { logAuditEvent } = await import('../audit');
+      const { prisma } = await import('../prisma') as unknown as { prisma: MockPrisma };
+      const { logAuditEvent } = await import('../audit') as unknown as MockAudit;
 
-      const mockUser = {
+      const mockUser: MockUtilisateur = {
         id: 'user-error',
         email: 'error@test.com',
         prenom: 'Error',
@@ -145,12 +233,13 @@ describe('Authentication Module (auth.ts)', () => {
         motDePasseHashe: 'hash123'
       };
 
-      (prisma.utilisateur.findUnique as any).mockResolvedValue(mockUser);
-      (bcrypt.compare as any).mockResolvedValue(true);
+      prisma.utilisateur.findUnique.mockResolvedValue(mockUser);
+      (crypto.timingSafeEqual as ReturnType<typeof vi.fn>).mockReturnValue(true);
       
       // Simule une erreur dans le log audit
-      (logAuditEvent as any).mockRejectedValue(new Error('Audit service down'));
+      logAuditEvent.mockRejectedValue(new Error('Audit service down'));
 
+      const authorize = getAuthorize();
       const result = await authorize(
         { email: 'error@test.com', password: '123' },
         { headers: { 'x-forwarded-for': '1.2.3.4' } }
@@ -162,25 +251,34 @@ describe('Authentication Module (auth.ts)', () => {
     });
 
     test('devrait capturer les erreurs générales dans authorize()', async () => {
-      const { prisma } = await import('../prisma');
+      const { prisma } = await import('../prisma') as unknown as { prisma: MockPrisma };
 
       // Simule une erreur complète (ex: prisma en panne)
-      (prisma.utilisateur.findUnique as any).mockRejectedValue(new Error('Prisma connection error'));
+      prisma.utilisateur.findUnique.mockRejectedValue(new Error('Prisma connection error'));
 
-      const result = await authorize({ email: 'test@test.com', password: '123' }, {});
+      const authorize = getAuthorize();
+      const result = await authorize(
+        { email: 'test@test.com', password: '123' },
+        {}
+      );
       
       expect(result).toBeNull();
     });
   });
 
-    describe('Branches restantes', () => {
-    const authorize = (authOptions.providers![0] as any).options.authorize;
+  describe('Branches restantes', () => {
+    const getAuthorize = () => {
+      const provider = authOptions.providers![0];
+      return provider.options?.authorize as (
+        credentials: Credentials | undefined,
+        req: AuthorizeReq | undefined
+      ) => Promise<AuthorizeResult | null>;
+    };
 
-    test('devrait gérer le cas où req est undefined', async () => {
-      const { prisma } = await import('../prisma');
-      const { logAuditEvent } = await import('../audit');
-
-      const mockUser = {
+    test('devrait capturer les erreurs générales dans authorize()', async () => {
+    const { prisma } = await import('../prisma') as unknown as { prisma: MockPrisma };
+    
+      const mockUser: MockUtilisateur = {
         id: 'user-777',
         email: 'test@test.com',
         prenom: 'Test',
@@ -190,15 +288,17 @@ describe('Authentication Module (auth.ts)', () => {
         motDePasseHashe: 'hash'
       };
 
-      (prisma.utilisateur.findUnique as any).mockResolvedValue(mockUser);
-      (bcrypt.compare as any).mockResolvedValue(true);
+      prisma.utilisateur.findUnique.mockResolvedValue(mockUser);
+      (crypto.timingSafeEqual as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
+      const authorize = getAuthorize();
       const result = await authorize(
         { email: 'test@test.com', password: '123' },
-        undefined as any   // req undefined
+        undefined as unknown as AuthorizeReq
       );
 
       expect(result).toBeDefined();
       expect(result!.name).toBe('Test');
     });
   });
+});

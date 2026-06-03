@@ -2,8 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { scanService } from '../service';
 import { scanRepository } from '../repository';
 import * as nucleiScanner from '@/lib/scanner/nuclei';
-import { prisma } from '@/lib/prisma';
 import { ScanInput } from '../types';
+
+// Types pour les mocks
+type MockScanRepository = {
+  createScan: ReturnType<typeof vi.fn>;
+  createVulnerabilites: ReturnType<typeof vi.fn>;
+  updateActifLastScan: ReturnType<typeof vi.fn>;
+  getScans: ReturnType<typeof vi.fn>;
+};
+
+type MockNucleiScanner = {
+  runNucleiScan: ReturnType<typeof vi.fn>;
+};
 
 // Mocks
 vi.mock('../repository', () => ({
@@ -48,17 +59,20 @@ describe('Scan Service', () => {
         statut: 'EN_COURS',
       };
 
-      (scanRepository.createScan as any).mockResolvedValue(mockScan);
-      (nucleiScanner.runNucleiScan as any).mockResolvedValue({
+      const mockRepo = scanRepository as unknown as MockScanRepository;
+      const mockScanner = nucleiScanner as unknown as MockNucleiScanner;
+
+      mockRepo.createScan.mockResolvedValue(mockScan);
+      mockScanner.runNucleiScan.mockResolvedValue({
         success: true,
-        results: []
+        results: [],
       });
 
       const result = await scanService.lancerScan(mockInput);
 
       expect(result).toEqual(mockScan);
       expect(scanRepository.createScan).toHaveBeenCalledTimes(1);
-      expect(scanRepository.createVulnerabilites).toHaveBeenCalledTimes(1); // Changé à 1 (même avec tableau vide)
+      expect(scanRepository.createVulnerabilites).toHaveBeenCalledTimes(1);
     });
 
     it('devrait créer les vulnérabilités si des résultats sont trouvés', async () => {
@@ -75,10 +89,13 @@ describe('Scan Service', () => {
         statut: 'EN_COURS',
       };
 
-      (scanRepository.createScan as any).mockResolvedValue(mockScan);
-      (nucleiScanner.runNucleiScan as any).mockResolvedValue({
+      const mockRepo = scanRepository as unknown as MockScanRepository;
+      const mockScanner = nucleiScanner as unknown as MockNucleiScanner;
+
+      mockRepo.createScan.mockResolvedValue(mockScan);
+      mockScanner.runNucleiScan.mockResolvedValue({
         success: true,
-        results: [{ name: "Test Vuln", severity: "high" }]
+        results: [{ name: 'Test Vuln', severity: 'high' }],
       });
 
       const result = await scanService.lancerScan(mockInput);
@@ -101,8 +118,11 @@ describe('Scan Service', () => {
         statut: 'EN_COURS',
       };
 
-      (scanRepository.createScan as any).mockResolvedValue(mockScan);
-      (nucleiScanner.runNucleiScan as any).mockResolvedValue({ success: false });
+      const mockRepo = scanRepository as unknown as MockScanRepository;
+      const mockScanner = nucleiScanner as unknown as MockNucleiScanner;
+
+      mockRepo.createScan.mockResolvedValue(mockScan);
+      mockScanner.runNucleiScan.mockResolvedValue({ success: false });
 
       const result = await scanService.lancerScan(mockInput);
 

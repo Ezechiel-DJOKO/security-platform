@@ -5,7 +5,6 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
-    // Récupérer ou créer un actif de test
     let actif = await prisma.actif.findFirst();
     if (!actif) {
       actif = await prisma.actif.create({
@@ -19,7 +18,6 @@ export async function GET() {
       });
     }
 
-    // Récupérer ou créer un utilisateur de test
     let user = await prisma.utilisateur.findFirst();
     if (!user) {
       user = await prisma.utilisateur.create({
@@ -46,8 +44,9 @@ export async function GET() {
       message: "Test de scan lancé",
       scan: result
     });
-  } catch (error: any) {
-    console.error(error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Erreur inconnue lors du test de scan';
+    console.error(message);
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

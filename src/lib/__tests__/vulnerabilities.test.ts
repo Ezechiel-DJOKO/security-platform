@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { prisma } from '@/lib/prisma';
-import { assignVulnerability, markAsCorrected, validateFix } from '@/actions/vulnerabilityActions';
+import { assignVulnerability, markAsCorrected } from '@/actions/vulnerabilityActions';
 
 // Mock Prisma
 vi.mock('@/lib/prisma', () => ({

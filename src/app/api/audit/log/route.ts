@@ -6,18 +6,28 @@ import { prisma } from '@/lib/prisma';
 import { Session } from 'next-auth';
 import { TypeAction } from '@prisma/client'; 
 import { EntiteCible } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession() as Session | null;
-    const { userId, action, resource, details } = await req.json() as {
+    
+    const { 
+      userId, 
+      action,
+      resource,
+      details,
+      scanId,
+      vulnId
+    } = await req.json() as {
       userId?: string;
       action: string;
       resource: string;
-      details?: Record<string, unknown>;
+      details?: unknown;
+      scanId?: string;
+      vulnId?: string;
     };
 
-    // Récupération sécurisée de l'IP
     const ipAdresse = 
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
       req.headers.get('x-real-ip') ||
@@ -26,12 +36,15 @@ export async function POST(req: NextRequest) {
     await prisma.auditLog.create({
       data: {
         idUtilisateur: userId || session?.user?.id || null,
-        action: TypeAction.CREATE,
-        entite: EntiteCible.VULNERABILITY,
+        action: TypeAction.CREATION,
+        entite: EntiteCible.VULNERABILITE,
         idEntite: null,
-        details: {
-            scanId: scanId,
-            vulnerabilityId: vulnId},
+        details: (details ?? {
+          scanId: scanId ?? null,
+          vulnerabilityId: vulnId ?? null,
+          action: action,           // ✅ AJOUTÉ : utilise `action`
+          resource: resource        // ✅ AJOUTÉ : utilise `resource`
+        }) as Prisma.InputJsonValue,
         ipAdresse: ipAdresse,
         userAgent: req.headers.get('user-agent') || null,
       }

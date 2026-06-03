@@ -24,7 +24,7 @@ export async function logAuditEvent(
     if (!response.ok) {
       console.warn(`[AUDIT] Échec du log: ${action}`);
     }
-  } catch (_error: unknown) {
+  } catch (error) {
     console.log(`[AUDIT FALLBACK] ${action} | User: ${userId} | ${resource}`, details);
   }
 }

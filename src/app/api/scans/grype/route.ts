@@ -15,7 +15,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  // ✅ Correction 1 : On extrait obligatoirement idActif envoyé par le client
   const { imageName, idActif } = await req.json();   
 
   if (!imageName) {
@@ -27,7 +26,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Vérification que l'actif existe bien dans votre base de données
     const actif = await prisma.actif.findUnique({ where: { id: idActif } });
     if (!actif) {
       return NextResponse.json({ error: "Actif non trouvé" }, { status: 404 });
@@ -38,7 +36,7 @@ export async function POST(req: NextRequest) {
 
     const scan = await prisma.scan.create({
       data: {
-        idActif: idActif, // ✅ Correction 2 : Renseigné car obligatoire dans votre Prisma
+        idActif: idActif,
         lancerPar: session.user.id,
         type: "VULNERABILITE",
         outil: OutilScan.GRYPE, 
@@ -54,8 +52,9 @@ export async function POST(req: NextRequest) {
       summary: result
     });
 
-  } catch (error: any) {
-    console.error("Erreur Scan Grype:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Erreur inconnue lors du scan Grype';
+    console.error("Erreur Scan Grype:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

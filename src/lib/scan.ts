@@ -11,7 +11,7 @@ export async function triggerScanBackground(target: string): Promise<void> {
   const scriptPath = 'python-scanner/scan.py'
   
   // Exécution asynchrone en tâche de fond (détachée)
-  exec(`python3 ${scriptPath} ${target}`, (error, stdout, stderr) => {
+  exec(`python3 ${scriptPath} ${target}`, (error) => {
     if (error) {
       console.error(`[Scan Background] Erreur sur ${target}:`, error.message)
       return

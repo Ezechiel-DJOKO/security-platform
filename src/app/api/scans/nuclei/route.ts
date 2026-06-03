@@ -24,17 +24,14 @@ export async function POST(req: NextRequest) {
     const scanTarget = target || actif.adresseIP || actif.hostname;
     if (!scanTarget) return NextResponse.json({ error: "Aucune cible valide" }, { status: 400 });
 
-    // Exécution Nuclei
     const command = `nuclei -target ${scanTarget} -json -silent -o nuclei-output.json`;
     const { stdout } = await execPromise(command);
 
     const scan = await prisma.scan.create({
       data: {
-        // ✅ Correction 1 : Sécurise le type au cas où 'idActif' reçu du JSON vaut null
         idActif: idActif ?? undefined,
         lancerPar: session.user.id,
         type: "VULNERABILITE",
-        // ✅ Correction 2 : Utilise l'Enum typé importé depuis Prisma Client
         outil: OutilScan.NUCLEI, 
         statut: "TERMINE",
         fin: new Date(),
@@ -47,7 +44,8 @@ export async function POST(req: NextRequest) {
       findings: stdout ? "Résultats disponibles" : "Aucune vulnérabilité détectée"
     });
 
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Erreur inconnue lors du scan Nuclei';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

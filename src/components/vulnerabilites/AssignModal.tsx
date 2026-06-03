@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { User, X } from 'lucide-react';
 import { assignVulnerability } from '@/actions/vulnerabilityActions';
 
-// Types extraits — à déplacer dans un fichier types.ts si réutilisés
 interface UserData {
   id: string;
   prenom: string;
@@ -35,7 +34,6 @@ export default function AssignModal({ open, onClose, vulnerability, onSuccess }:
   const hasLoadedUsers = useRef(false);
 
   const fetchUsers = useCallback(async () => {
-    // Évite les requêtes multiples si déjà chargé
     if (hasLoadedUsers.current && users.length > 0) return;
     
     try {
@@ -56,24 +54,19 @@ export default function AssignModal({ open, onClose, vulnerability, onSuccess }:
     }
   }, [users.length]);
 
-  // Reset du formulaire quand la modale se ferme
-  const handleOpen = useCallback(() => {
-    if (!hasLoadedUsers.current) {
+  // ✅ CORRECTION : useEffect au lieu d'accès direct au ref pendant le render
+  useEffect(() => {
+    if (open && !hasLoadedUsers.current) {
       fetchUsers();
     }
-  }, [fetchUsers]);
+  }, [open, fetchUsers]);
 
-  // Appel handleOpen via un pattern déclaratif sans setState dans l'effect
-  // On utilise une key sur le composant parent ou on déclenche au montage
-  // Solution : on charge les users au premier render visible
-  const isFirstRender = useRef(true);
-  if (open && isFirstRender.current) {
-    isFirstRender.current = false;
-    handleOpen();
-  }
-  if (!open) {
-    isFirstRender.current = true;
-  }
+  // Reset du flag quand la modale se ferme (pour permettre rechargement si besoin)
+  useEffect(() => {
+    if (!open) {
+      hasLoadedUsers.current = false;
+    }
+  }, [open]);
 
   const handleAssign = async () => {
     if (!assigneA) return;

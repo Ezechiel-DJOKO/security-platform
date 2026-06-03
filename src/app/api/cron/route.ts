@@ -1,7 +1,6 @@
 // src/app/api/cron/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-// ✅ Correction 1 : Importation de la fonction manquante depuis vos services de scan
 import { triggerNucleiScan } from '@/lib/scan';
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +14,6 @@ export async function GET(req: NextRequest) {
   try {
     console.log("🕒 [CRON] Vérification des actifs sans scan...");
 
-    // Trouver les actifs qui n'ont aucun scan enregistré
     const actifsAAnalyser = await prisma.actif.findMany({
       where: {
         scans: { none: {} }
@@ -28,7 +26,6 @@ export async function GET(req: NextRequest) {
     }
 
     for (const actif of actifsAAnalyser) {
-      // Création d'une nouvelle instance de scan en BDD pour cet actif
       const nouveauScan = await prisma.scan.create({
         data: {
           idActif: actif.id,
@@ -39,8 +36,6 @@ export async function GET(req: NextRequest) {
         }
       });
 
-      // ✅ Correction 2 : On passe l'ID du scan fraîchement créé (nouveauScan.id) 
-      // au lieu de la variable inexistante 'scanId'
       triggerNucleiScan(nouveauScan.id);
     }
 
@@ -49,8 +44,9 @@ export async function GET(req: NextRequest) {
       scansLances: actifsAAnalyser.length 
     });
 
-  } catch (error: any) {
-    console.error("❌ [CRON ERROR]:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Erreur inconnue du cron';
+    console.error("❌ [CRON ERROR]:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

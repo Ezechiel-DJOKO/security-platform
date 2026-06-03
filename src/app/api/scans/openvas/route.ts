@@ -23,12 +23,10 @@ export async function POST(req: NextRequest) {
     const targetIp = target || actif.adresseIP;
     if (!targetIp) return NextResponse.json({ error: "Aucune IP valide" }, { status: 400 });
 
-    // Exécuter le script Python
     const { stdout } = await execPromise(`cd python-scanner && python3 scan.py ${targetIp}`);
 
     const result = JSON.parse(stdout);
 
-    // Enregistrer le scan dans Prisma
     const scan = await prisma.scan.create({
       data: {
         idActif,
@@ -45,8 +43,9 @@ export async function POST(req: NextRequest) {
       openvas: result
     });
 
-  } catch (error: any) {
-    console.error(error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Erreur inconnue lors du scan OpenVAS';
+    console.error(message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
