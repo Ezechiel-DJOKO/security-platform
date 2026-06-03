@@ -1,7 +1,7 @@
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
+import { getServerSession } from "next-auth/next";
 import { prisma } from '@/lib/prisma';
 import { Session } from 'next-auth';
 import { TypeAction } from '@prisma/client'; 

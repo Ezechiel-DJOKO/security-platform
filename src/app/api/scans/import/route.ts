@@ -37,7 +37,7 @@ export async function POST(request: Request) {
           where: { id: actif.id },
           data: { updatedAt: new Date() }
         });
-      } catch (_e) {  // ✅ CORRIGÉ : e → _e (warning ESLint variable inutilisée)
+      } catch {  // ✅ CORRIGÉ : e → _e (warning ESLint variable inutilisée)
         // Silencieux
       }
     }

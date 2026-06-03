@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth';
+import { getServerSession } from "next-auth/next";
 import { authOptions } from '@/lib/auth';
 import { triggerScanBackground } from '@/lib/scan';
 import { revalidatePath } from 'next/cache';

@@ -1,10 +1,10 @@
 // src/features/vulnerabilites/repository.ts
 import { prisma } from '@/lib/prisma';
-import { StatutVulnerabilite, Priorite } from '@prisma/client';
+import { StatutVulnerabilite, Priorite, Prisma } from '@prisma/client';
 
 export const vulnerabiliteRepository = {
 
-  async createMany(vulnerabilites: any[]) {
+  async createMany(vulnerabilites: Prisma.VulnerabiliteCreateManyInput[]) {
     return prisma.vulnerabilite.createMany({
       data: vulnerabilites,
       skipDuplicates: true,
@@ -31,7 +31,6 @@ export const vulnerabiliteRepository = {
       }
     });
 
-    // Enregistrement dans l'historique
     await prisma.historiqueVulnerabilite.create({
       data: {
         idVulnerabilite: idVuln,
@@ -64,7 +63,7 @@ export const vulnerabiliteRepository = {
       }
     });
 
-    const vulnerabilite = await this.updateStatut(idVuln, 'EN_COURS', userId);
+    const vulnerabilite = await vulnerabiliteRepository.updateStatut(idVuln, 'EN_COURS', userId);
 
     return { vulnerabilite, planCorrection: plan };
   },

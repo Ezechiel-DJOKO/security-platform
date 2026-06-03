@@ -1,9 +1,10 @@
 // src/app/api/vulnerabilities/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth';
+import { getServerSession } from "next-auth/next";
 import { authOptions } from '@/lib/auth';
 import { z } from 'zod';
+import { Prisma, Severite, StatutVulnerabilite } from '@prisma/client';
 
 const vulnerabilitySchema = z.object({
   idScan: z.string().uuid(),
@@ -31,6 +32,14 @@ function calculateRisqueRelatif(scoreCVSS: number | null, epssScore: number | nu
   return Math.min(Math.max(Math.round(risque * 10) / 10, 0), 10);
 }
 
+// ─── Helpers pour cast les enums ───────────────────────
+
+const isSeverite = (s: string): s is Severite => 
+  ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(s);
+
+const isStatutVulnerabilite = (s: string): s is StatutVulnerabilite =>
+  ['OUVERTE', 'EN_COURS', 'CORRIGEE', 'IGNORE', 'RISQUE_ACCEPTE', 'VERIFIEE'].includes(s);
+
 // GET
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -41,17 +50,28 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '20');
   const skip = (page - 1) * limit;
 
-  const where: any = {};
+  const where: Prisma.VulnerabiliteWhereInput = {};
 
-  if (searchParams.get('severite')) {
-    where.severite = { in: searchParams.get('severite')!.split(',') };
+  const severiteParam = searchParams.get('severite');
+  if (severiteParam) {
+    const severites = severiteParam.split(',').filter(isSeverite);
+    if (severites.length > 0) where.severite = { in: severites };
   }
-  if (searchParams.get('statut')) {
-    where.statut = { in: searchParams.get('statut')!.split(',') };
+
+  const statutParam = searchParams.get('statut');
+  if (statutParam) {
+    const statuts = statutParam.split(',').filter(isStatutVulnerabilite);
+    if (statuts.length > 0) where.statut = { in: statuts };
   }
-  if (searchParams.get('assigneA')) where.assigneA = searchParams.get('assigneA');
-  if (searchParams.get('idScan')) where.idScan = searchParams.get('idScan');
-  if (searchParams.get('cveId')) where.cveId = { contains: searchParams.get('cveId') };
+
+  const assigneA = searchParams.get('assigneA');
+  if (assigneA) where.assigneA = assigneA;
+
+  const idScan = searchParams.get('idScan');
+  if (idScan) where.idScan = idScan;
+
+  const cveId = searchParams.get('cveId');
+  if (cveId) where.cveId = { contains: cveId };
 
   const search = searchParams.get('search');
   if (search) {
@@ -101,7 +121,7 @@ export async function GET(req: NextRequest) {
   });
 }
 
-// POST (ton code était bon, juste petite optimisation)
+// POST
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
@@ -134,8 +154,12 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(vulnerability, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(error);
-    return NextResponse.json({ error: error.errors || error.message }, { status: 400 });
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.issues }, { status: 400 });
+    }
+    const message = error instanceof Error ? error.message : 'Erreur inconnue';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

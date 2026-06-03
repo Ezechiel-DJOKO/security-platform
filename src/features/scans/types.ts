@@ -1,4 +1,4 @@
-import { TypeScan, OutilScan, StatutScan, Severite, StatutVulnerabilite } from '@prisma/client';
+import { TypeScan, OutilScan, StatutScan, Severite } from '@prisma/client';
 
 export type ScanInput = {
   idActif: string;

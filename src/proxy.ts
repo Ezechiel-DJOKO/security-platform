@@ -1,13 +1,14 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import type { NextFetchEvent } from "next/server";
 
-// 1. Initialisation de la logique de filtrage sous la nouvelle convention "proxy"
+// 1. Middleware avec withAuth — utilise le type interne de NextAuth
 const authProxy = withAuth(
-  function proxy(req: NextRequest) {
+  function proxy(req) {
     const { pathname } = req.nextUrl;
+    const token = req.nextauth.token;
 
-    // Analyse des routes protégées
     if (
       pathname.startsWith("/dashboard") ||
       pathname.startsWith("/(dashboard)") ||
@@ -16,13 +17,10 @@ const authProxy = withAuth(
       pathname.startsWith("/inventaire") ||
       pathname.startsWith("/rapports")
     ) {
-      const token = (req as any).nextauth?.token;
-
       if (!token) {
         return NextResponse.redirect(new URL("/auth/login", req.url));
       }
 
-      // Gestion simple des privilèges (RBAC)
       const role = token.role as string | undefined;
       if (pathname.includes("/admin") && role !== "ADMIN") {
         return NextResponse.redirect(new URL("/dashboard", req.url));
@@ -33,11 +31,7 @@ const authProxy = withAuth(
   },
   {
     callbacks: {
-      authorized: ({ token, req }) => {
-        const { pathname } = req.nextUrl;
-        if (pathname === "/" || pathname === "/auth/login") {
-          return true;
-        }
+      authorized: ({ token }) => {
         return !!token;
       },
     },
@@ -47,12 +41,12 @@ const authProxy = withAuth(
   }
 );
 
-// 2. Next.js 16 exige l'export par défaut nommé "proxy"
-export default function proxy(req: NextRequest, event: any) {
-  return (authProxy as any)(req, event);
+// 2. Export par défaut — cast pour satisfaire Next.js
+export default function proxy(req: NextRequest, event: NextFetchEvent) {
+  return authProxy(req as Parameters<typeof authProxy>[0], event);
 }
 
-// 3. Configuration des routes cibles (Matchérisation statique)
+// 3. Configuration
 export const config = {
   matcher: [
     "/dashboard/:path*",

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as vulnerabilityActions from '@/actions/vulnerabilityActions';
 import { scanService } from '../service';
-import { getServerSession } from 'next-auth';
+import { getServerSession } from "next-auth/next";
 import { prisma } from '@/lib/prisma';
 import { TypeScan, OutilScan, Prisma } from '@prisma/client';
 
@@ -203,26 +203,25 @@ describe('Vulnerability & Scanner Workflow - Full Coverage', () => {
     });
 
     it('devrait mettre à jour le plan existant', async () => {
-      const mockVuln = createMockVuln({
-        id: mockVulnId,
-        statut: 'OUVERTE',
-        plan: {
-          id: 'plan-existant',
-          idVulnerabilite: mockVulnId,
-          statut: 'A_FAIRE',
-          assigneA: null,
-          description: null,
-          priorite: 'MOYENNE',
-          dateDebut: null,
-          dateFinPrevue: null,
-          dateFinReelle: null,
-          preuve: null,
-          commentaire: '',
-          deletedAt: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      });
+      // Dans le test "devrait mettre à jour le plan existant"
+    const mockVuln = createMockVuln({
+      id: mockVulnId,
+      statut: 'OUVERTE',
+      plan: {
+        id: 'plan-existant',
+        idVulnerabilite: mockVulnId,  // ← clé étrangère
+        assigneA: 'user-1',
+        priorite: 'MOYENNE',
+        dateEcheance: new Date(),
+        statut: 'A_FAIRE',
+        commentaire: '',
+        dateResolution: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        // PAS de 'vulnerabilite' ici !
+        // PAS de 'assigne' ici non plus (relation inverse) !
+      },
+    });
       vi.mocked(prisma.vulnerabilite.findUnique).mockResolvedValue(mockVuln);
 
       await vulnerabilityActions.assignVulnerability(defaultPayload);

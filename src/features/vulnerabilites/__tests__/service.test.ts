@@ -2,6 +2,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { vulnerabiliteService } from './service';
 import { vulnerabiliteRepository } from '../repository';
+
+// Types pour les mocks
+type MockedRepository = {
+  createMany: ReturnType<typeof vi.fn>;
+  updateStatut: ReturnType<typeof vi.fn>;
+  assigner: ReturnType<typeof vi.fn>;
+  getByScan: ReturnType<typeof vi.fn>;
+};
+
 // Mocks
 vi.mock('../repository', () => ({
   vulnerabiliteRepository: {
@@ -13,6 +22,8 @@ vi.mock('../repository', () => ({
 }));
 
 describe('Vulnerabilite Service', () => {
+  const mockedRepo = vulnerabiliteRepository as unknown as MockedRepository;
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -24,12 +35,12 @@ describe('Vulnerabilite Service', () => {
         { titre: 'SQL Injection', scoreCVSS: 9.8, description: '...' }
       ];
 
-      (vulnerabiliteRepository.createMany as any).mockResolvedValue({ count: 2 });
+      mockedRepo.createMany.mockResolvedValue({ count: 2 });
 
       const result = await vulnerabiliteService.creerVulnerabilites('scan-123', mockResults);
 
       expect(result.count).toBe(2);
-      expect(vulnerabiliteRepository.createMany).toHaveBeenCalledTimes(1);
+      expect(mockedRepo.createMany).toHaveBeenCalledTimes(1);
     });
 
     it('devrait retourner count 0 si aucun résultat', async () => {
@@ -39,19 +50,19 @@ describe('Vulnerabilite Service', () => {
   });
 
   describe('mettreAJourStatut()', () => {
-    it('devrait mettre à jour le statut et logger l’historique', async () => {
+    it('devrait mettre à jour le statut et logger l\'historique', async () => {
       const mockUpdated = { id: 'vuln-1', statut: 'CORRIGEE' };
-      (vulnerabiliteRepository.updateStatut as any).mockResolvedValue(mockUpdated);
+      mockedRepo.updateStatut.mockResolvedValue(mockUpdated);
 
       const result = await vulnerabiliteService.mettreAJourStatut(
         'vuln-1',
-        'CORRIGEE',
+        'CORRIGEE' as const,
         'user-456',
         'Corrigé via patch'
       );
 
       expect(result).toEqual(mockUpdated);
-      expect(vulnerabiliteRepository.updateStatut).toHaveBeenCalledWith(
+      expect(mockedRepo.updateStatut).toHaveBeenCalledWith(
         'vuln-1', 'CORRIGEE', 'user-456', 'Corrigé via patch'
       );
     });
@@ -60,12 +71,16 @@ describe('Vulnerabilite Service', () => {
   describe('assignerVulnerabilite()', () => {
     it('devrait assigner une vulnérabilité avec priorité', async () => {
       const mockResult = { vulnerabilite: {}, planCorrection: {} };
-      (vulnerabiliteRepository.assigner as any).mockResolvedValue(mockResult);
+      mockedRepo.assigner.mockResolvedValue(mockResult);
 
-      const result = await vulnerabiliteService.assignerVulnerabilite('vuln-1', 'user-789', 'HAUTE');
+      const result = await vulnerabiliteService.assignerVulnerabilite(
+        'vuln-1',
+        'user-789',
+        'HAUTE' as const
+      );
 
       expect(result).toEqual(mockResult);
-      expect(vulnerabiliteRepository.assigner).toHaveBeenCalledWith('vuln-1', 'user-789', 'HAUTE');
+      expect(mockedRepo.assigner).toHaveBeenCalledWith('vuln-1', 'user-789', 'HAUTE');
     });
   });
 });

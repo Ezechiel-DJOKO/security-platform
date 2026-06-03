@@ -29,7 +29,7 @@ export const vulnerabiliteService = {
       cveId: v.cveId || null,
       titre: v.titre || v.name || 'Vulnérabilité détectée',
       description: v.description,
-      severite: v.severite || this.determinerSeverite(v.scoreCVSS),
+      severite: v.severite || vulnerabiliteService.determinerSeverite(v.scoreCVSS),
       scoreCVSS: v.scoreCVSS || null,
       vecteurCVSS: v.vecteurCVSS || null,
       preuve: v.preuve || v.matchedAt || null,

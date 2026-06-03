@@ -1,10 +1,9 @@
 // src/app/api/vulnerabilities/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth';
+import { getServerSession } from "next-auth/next";
 import { authOptions } from '@/lib/auth';
 import { z } from 'zod';
-import { error } from 'console';
 
 // Schéma de validation
 const updateVulnerabilitySchema = z.object({
@@ -85,7 +84,7 @@ export async function GET(
   return NextResponse.json(vulnerability);
 }
 
-// PUT - Mise à jour
+
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -128,13 +127,28 @@ export async function PUT(
     return NextResponse.json(updatedVulnerability);
   } catch (e) {
     console.error(e);
+    
+    // Gestion propre des erreurs Zod vs Error standard
+    if (e instanceof z.ZodError) {
+      return NextResponse.json({
+        error: "Données invalides",
+        details: e.issues
+      }, { status: 400 });
+    }
+    
+    if (e instanceof Error) {
+      return NextResponse.json({
+        error: "Données invalides",
+        details: e.message
+      }, { status: 400 });
+    }
+
     return NextResponse.json({
       error: "Données invalides",
-      details: error.errors || error.messaage
+      details: "Erreur inconnue"
     }, { status: 400 });
   }
 }
-
 // DELETE - Soft Delete
 export async function DELETE(
   req: NextRequest,
@@ -160,7 +174,7 @@ export async function DELETE(
       message: "Vulnérabilité supprimée (soft delete)",
       id
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Erreur lors de la suppression" }, { status: 500 });
   }
 }

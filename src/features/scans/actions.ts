@@ -12,8 +12,9 @@ export async function lancerScanAction(input: ScanInput) {
     revalidatePath('/(dashboard)/actifs');
     
     return { success: true, scan };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(error);
-    return { success: false, error: error.message };
+    const message = error instanceof Error ? error.message : 'Erreur lors du lancement du scan';
+    return { success: false, error: message };
   }
 }

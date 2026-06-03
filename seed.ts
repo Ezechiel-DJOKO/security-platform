@@ -61,7 +61,7 @@ async function main() {
   console.log("✅ 3 Scans créés");
 
   // ==================== 4. VULNÉRABILITÉS ====================
-  const vulns = await Promise.all([
+  await Promise.all([
     prisma.vulnerabilite.create({ data: { idScan: scans[0].id, cveId: "CVE-2024-1234", titre: "Injection SQL critique", severite: "CRITICAL", statut: "OUVERTE", assigneA: users[1].id }}),
     prisma.vulnerabilite.create({ data: { idScan: scans[1].id, cveId: "CVE-2024-5678", titre: "Cross-Site Scripting (XSS)", severite: "HIGH", statut: "EN_COURS", assigneA: users[0].id }}),
     prisma.vulnerabilite.create({ data: { idScan: scans[0].id, cveId: "CVE-2024-9012", titre: "Accès non autorisé aux données", severite: "MEDIUM", statut: "OUVERTE" }})
