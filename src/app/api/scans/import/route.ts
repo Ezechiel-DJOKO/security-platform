@@ -1,7 +1,7 @@
+// src/app/api/scans/import/route.ts
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-import { prisma } from "@/lib/prisma"; 
+import { prisma } from "@/lib/prisma";
+import { processScanResults } from '@/lib/scanner/postScanProcessor';
 
 export async function POST(request: Request) {
   try {
@@ -12,6 +12,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ status: 'error', message: 'Paramètres manquants' }, { status: 400 });
     }
 
+    // ==================== CRÉATION / MISE À JOUR DE L'ACTIF ====================
     let actif = await prisma.actif.findFirst({
       where: {
         OR: [
@@ -32,19 +33,16 @@ export async function POST(request: Request) {
         },
       });
     } else {
-      try {
-        await prisma.actif.update({
-          where: { id: actif.id },
-          data: { updatedAt: new Date() }
-        });
-      } catch {  // ✅ CORRIGÉ : e → _e (warning ESLint variable inutilisée)
-        // Silencieux
-      }
+      await prisma.actif.update({
+        where: { id: actif.id },
+        data: { updatedAt: new Date() }
+      });
     }
 
+    // ==================== CRÉATION DU SCAN ====================
     const defaultUser = await prisma.utilisateur.findFirst();
     if (!defaultUser) {
-      return NextResponse.json({ status: 'error', message: 'Aucun utilisateur trouvé en base pour assigner le scan' }, { status: 400 });
+      return NextResponse.json({ status: 'error', message: 'Aucun utilisateur trouvé' }, { status: 400 });
     }
 
     const scanRecord = await prisma.scan.create({
@@ -59,6 +57,7 @@ export async function POST(request: Request) {
       },
     });
 
+    // ==================== INSERTION DES VULNÉRABILITÉS ====================
     let totalInserts = 0;
 
     if (scanner === 'grype' && data?.matches) {
@@ -75,7 +74,7 @@ export async function POST(request: Request) {
         });
         totalInserts++;
       }
-    } 
+    }
     else if (scanner === 'nuclei' && Array.isArray(data)) {
       for (const finding of data) {
         if (!finding) continue;
@@ -109,15 +108,22 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ 
-      status: 'success', 
-      message: 'Données synchronisées en base', 
-      inserted_vulnerabilities: totalInserts 
+    // ==================== MAPPING AUTOMATIQUE ISO 27001 ====================
+    console.log(`🔄 Lancement du mapping automatique pour ${totalInserts} vulnérabilités...`);
+    const mappingResult = await processScanResults(scanRecord.id);
+
+    // ==================== RÉPONSE FINALE ====================
+    return NextResponse.json({
+      status: 'success',
+      message: 'Données synchronisées avec succès',
+      inserted_vulnerabilities: totalInserts,
+      iso27001_mappings: mappingResult?.mappingsCreated || 0,
+      scanId: scanRecord.id
     });
 
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Erreur inconnue lors de l\'import';
+    const message = error instanceof Error ? error.message : 'Erreur inconnue';
     console.error("❌ ERREUR API IMPORT :", message);
-    return NextResponse.json({ status: 'error', message: message }, { status: 500 });
+    return NextResponse.json({ status: 'error', message }, { status: 500 });
   }
 }

@@ -112,6 +112,7 @@ enum StatutConformite {
   NON_CONFORME
   PARTIELLEMENT
   NON_EVALUE
+  NON_APPLICABLE
 }
 
 // ====================== AUDIT TRAIL ENUMS ======================
@@ -226,16 +227,16 @@ model Vulnerabilite {
   preuve String?
   impact String?
   recommandation String?
-  
-  // === AJOUTS ===
-  risqueRelatif Float?     // Pour le calcul de risque relatif
-  tags TagVulnerabilite[]  // Relation many-to-many
-
+  risqueRelatif Float?
+  tags TagVulnerabilite[]
   scan Scan @relation("DetecteeParScan", fields: [idScan], references: [id], onDelete: Cascade)
   assigne Utilisateur? @relation("VulnAssigneA", fields: [assigneA], references: [id])
   plan PlanCorrection?
   historiques HistoriqueVulnerabilite[] @relation("HistoriqueVulnerabilite")
-  
+
+  // === NOUVELLE RELATION ===
+  controles VulnerabiliteControl[]   // ← Ajout ici
+
   dateDecouverte DateTime @default(now())
   dateCorrection DateTime?
   createdAt DateTime @default(now())
@@ -299,16 +300,39 @@ model RapportAudit {
 }
 
 model ControlConformite {
-  id          String    @id @default(uuid()) @db.Uuid
-  referentiel String
-  code        String
-  description String
-  statut      StatutConformite @default(NON_EVALUE)
+  id            String   @id @default(uuid()) @db.Uuid
+  referentiel   String   @default("ISO27001")
+  code          String   // ex: "5.1", "6.1.2", "8.2.1"
+  nom           String   // Ajout important
+  description   String
+  domaine       String?  // ex: "Contrôles organisationnels", "Contrôles technologiques"
+  theme         String?  // ex: "Gouvernance de la sécurité", "Gestion des accès"
+  statut        StatutConformite @default(NON_EVALUE)
 
-  scans       ControlScan[]
+  // === Relations ===
+  scans          ControlScan[]
+  vulnerabilites VulnerabiliteControl[]   // ← Nouvelle relation
 
   @@unique([referentiel, code])
   @@map("controles_conformite")
+}
+
+model VulnerabiliteControl {
+  id                String   @id @default(uuid()) @db.Uuid
+  vulnerabiliteId   String   @db.Uuid
+  controleId        String   @db.Uuid
+  niveauPertinence  Int      @default(80)   // Score de pertinence 0-100
+  justification     String?                 // Pourquoi ce contrôle est lié
+  sourceMapping     String   @default("AUTO") // AUTO | MANUEL | SUGGESTION
+
+  vulnerabilite     Vulnerabilite     @relation(fields: [vulnerabiliteId], references: [id], onDelete: Cascade)
+  controle          ControlConformite @relation(fields: [controleId], references: [id], onDelete: Cascade)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([vulnerabiliteId, controleId])
+  @@map("vulnerabilite_control")
 }
 
 model ControlScan {

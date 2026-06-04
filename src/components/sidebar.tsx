@@ -6,7 +6,9 @@ import {
   ShieldCheck, 
   Package, 
   FileText, 
-  Users 
+  Users, 
+  ScanLine,
+  Bug
 } from 'lucide-react';
 
 const navItems = [
@@ -14,7 +16,9 @@ const navItems = [
   { href: '/inventaire', label: 'Inventaire', icon: Package },
   { href: '/conformite', label: 'Conformité', icon: ShieldCheck },
   { href: '/rapports', label: 'Rapports', icon: FileText },
-  { href: '/users', label: 'Utilisateurs', icon: Users },
+  { href: '/scans', label: 'Scan', icon: ScanLine },
+  { href: '/vulnerabilites', label: 'Vulnérabilités', icon: Bug },
+  
 ];
 
 export default function Sidebar() {
