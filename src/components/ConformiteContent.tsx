@@ -1,85 +1,129 @@
 'use client';
-
 import { ShieldCheck } from 'lucide-react';
 import { useSession } from 'next-auth/react';
+import { useEffect, useState } from 'react';
 
-const standards = [
-  { 
-    name: "ISO 27001", score: 92, status: "Excellent", controls: 45,
-    styles: { text: "text-emerald-500", bg: "bg-emerald-500", badge: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" }
-  },
-  { 
-    name: "RGPD / Protection des Données", score: 87, status: "Bon", controls: 32,
-    styles: { text: "text-blue-500", bg: "bg-blue-500", badge: "border-blue-500/30 bg-blue-500/10 text-blue-400" }
-  },
-  { 
-    name: "NIST Cybersecurity Framework", score: 76, status: "À améliorer", controls: 28,
-    styles: { text: "text-yellow-500", bg: "bg-yellow-500", badge: "border-yellow-500/30 bg-yellow-500/10 text-yellow-400" }
-  },
-  { 
-    name: "PCI DSS", score: 65, status: "Critique", controls: 18,
-    styles: { text: "text-red-500", bg: "bg-red-500", badge: "border-red-500/30 bg-red-500/10 text-red-400" }
-  },
-];
+type DomainScore = {
+  domaine: string;
+  score: number;
+  totalControles: number;
+  controlesEvalues: number;
+  controlesNonConformes: number;
+  vulnsLiees: number;
+};
+
+type GapAnalysisResult = {
+  scoreGlobal: number;
+  domaines: DomainScore[];
+  totalControles: number;
+  lastUpdated: Date;
+};
 
 export default function ConformiteContent() {
-  const sessionContext = useSession();
+  const { data: session, status } = useSession();
+  const [analysis, setAnalysis] = useState<GapAnalysisResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Si le build tente d'évaluer le composant ou si c'est en cours de chargement
-  if (!sessionContext || sessionContext.status === "loading") {
+  useEffect(() => {
+    async function loadGapAnalysis() {
+      try {
+        const res = await fetch('/api/compliance', {
+          cache: 'no-store',
+          next: { revalidate: 60 }
+        });
+
+        if (!res.ok) throw new Error('Erreur lors du calcul');
+
+        const data = await res.json();
+        setAnalysis(data);
+      } catch (err) {
+        console.error(err);
+        setError("Impossible de charger l'analyse de conformité");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (session) {
+      loadGapAnalysis();
+    } else {
+      setLoading(false);
+    }
+  }, [session]);
+
+  if (status === "loading" || loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <p className="text-slate-400">Chargement des données de conformité...</p>
+      <div className="flex items-center justify-center h-96 text-slate-400">
+        Calcul de l'analyse Gap ISO 27001 en cours...
       </div>
     );
   }
-
-  const { data: session } = sessionContext;
 
   if (!session) {
     return (
       <div className="text-center py-12 text-amber-500">
-        Vous devez être connecté pour voir les informations de conformité.
+        Vous devez être connecté pour voir cette page.
       </div>
     );
   }
 
+  if (error) {
+    return <div className="text-red-500 text-center py-12">{error}</div>;
+  }
+
+  const globalScore = analysis?.scoreGlobal || 0;
+
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-white">Conformité</h1>
-        <p className="text-slate-400 mt-2">Suivi de la conformité réglementaire et normative</p>
+        <h1 className="text-3xl font-bold text-white">Gap Analysis ISO 27001</h1>
+        <p className="text-slate-400 mt-2">Évaluation de la conformité par domaine</p>
       </div>
 
-      <div className="bg-gradient-to-br from-slate-950 to-slate-900 border border-slate-700 rounded-3xl p-8 flex flex-col items-center">
-        <div className="text-emerald-400 text-7xl font-bold mb-2">85%</div>
-        <p className="text-2xl font-semibold text-white mb-1">Niveau de Conformité Global</p>
-        <p className="text-slate-400">Dernière évaluation : il y a 2 jours</p>
+      {/* Score Global */}
+      <div className="bg-gradient-to-br from-slate-950 to-slate-900 border border-slate-700 rounded-3xl p-10 text-center">
+        <div className="text-8xl font-bold text-white mb-2">{globalScore}%</div>
+        <p className="text-2xl font-semibold text-emerald-400">Niveau de Conformité Global</p>
+        <p className="text-slate-400 mt-2">
+          Basé sur {analysis?.totalControles} contrôles • {new Date(analysis?.lastUpdated || Date.now()).toLocaleDateString()}
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {standards.map((standard, index) => (
-          <div key={index} className="bg-slate-950 border border-slate-800 rounded-3xl p-6 hover:border-slate-700 transition-all">
-            <div className="flex justify-between items-start mb-6">
+      {/* Scores par Domaine */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {analysis?.domaines?.map((domaine, i) => (
+          <div key={i} className="bg-slate-950 border border-slate-800 rounded-3xl p-6 hover:border-slate-600 transition-all">
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="font-semibold text-lg text-white">{domaine.domaine}</h3>
+              <ShieldCheck className="w-8 h-8 text-emerald-500" />
+            </div>
+
+            <div className="flex justify-between items-end mb-3">
+              <span className="text-5xl font-bold text-white">{domaine.score}</span>
+              <span className="text-slate-400">/100</span>
+            </div>
+
+            <div className="h-2 bg-slate-800 rounded-full overflow-hidden mb-4">
+              <div
+                className="h-full bg-emerald-500 rounded-full transition-all"
+                style={{ width: `${domaine.score}%` }}
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 text-sm text-slate-400">
               <div>
-                <h3 className="font-semibold text-lg text-white">{standard.name}</h3>
-                <p className="text-sm text-slate-500 mt-1">{standard.controls} contrôles</p>
+                <p className="text-xs">Contrôles</p>
+                <p className="text-white font-medium">{domaine.totalControles}</p>
               </div>
-              <ShieldCheck className={`w-8 h-8 ${standard.styles.text}`} />
-            </div>
-
-            <div className="mb-4">
-              <div className="flex justify-between text-sm mb-2 text-slate-400">
-                <span>Score</span>
-                <span className="font-bold text-white">{standard.score}%</span>
+              <div>
+                <p className="text-xs">Non conformes</p>
+                <p className="text-rose-400 font-medium">{domaine.controlesNonConformes}</p>
               </div>
-              <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div className={`h-full ${standard.styles.bg} rounded-full`} style={{ width: `${standard.score}%` }} />
+              <div>
+                <p className="text-xs">Vulnérabilités liées</p>
+                <p className="text-amber-400 font-medium">{domaine.vulnsLiees}</p>
               </div>
-            </div>
-
-            <div className={`inline-block px-4 py-1 text-xs font-medium rounded-full border ${standard.styles.badge}`}>
-              {standard.status}
             </div>
           </div>
         ))}

@@ -1,18 +1,21 @@
+// vitest.config.ts
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import dotenv from 'dotenv';
+import path from 'path';
 
-// Charger les variables d'environnement
 dotenv.config({ path: '.env' });
 
 export default defineConfig({
   plugins: [react()],
 
   test: {
-    environment: 'jsdom',
     globals: true,
-    setupFiles: './src/lib/__tests__/setup.ts',
+    environment: 'node',           // ← Important pour Prisma
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['**/node_modules/**', '**/dist/**', '.next/**'],
+    
+    setupFiles: ['./src/lib/__tests__/setup.ts'],
     
     coverage: {
       provider: 'v8',
@@ -30,7 +33,7 @@ export default defineConfig({
 
   resolve: {
     alias: {
-      '@': '/src',
+      '@': path.resolve(__dirname, './src'),   // ← Correction importante
     },
   },
 });

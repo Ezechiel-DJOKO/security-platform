@@ -11,7 +11,8 @@
     "test:auth": "vitest run src/lib/__tests__/auth.test.ts",
     "coverage": "vitest run --coverage",
     "coverage:auth": "vitest run src/lib/__tests__/auth.test.ts --coverage",
-    "test:rbac": "vitest run src/lib/__tests__/rbac.test.ts"
+    "test:rbac": "vitest run src/lib/__tests__/rbac.test.ts",
+    "test:conformite": "vitest run src/lib/conformite"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",
