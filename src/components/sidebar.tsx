@@ -5,8 +5,7 @@ import {
   LayoutDashboard, 
   ShieldCheck, 
   Package, 
-  FileText, 
-  Users, 
+  FileText,
   ScanLine,
   Bug
 } from 'lucide-react';
