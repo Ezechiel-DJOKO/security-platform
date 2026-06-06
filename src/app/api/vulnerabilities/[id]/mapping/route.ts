@@ -6,10 +6,10 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const vulnerabiliteId = params.id;
+    const { id: vulnerabiliteId } = await params;
 
     // Vérifier que la vulnérabilité existe
     const vuln = await prisma.vulnerabilite.findUnique({
@@ -48,10 +48,10 @@ export async function POST(
 // Optionnel : GET pour récupérer les contrôles déjà liés à une vulnérabilité
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const vulnerabiliteId = params.id;
+    const { id: vulnerabiliteId } = await params;
 
     const mappings = await prisma.vulnerabiliteControl.findMany({
       where: { vulnerabiliteId },
