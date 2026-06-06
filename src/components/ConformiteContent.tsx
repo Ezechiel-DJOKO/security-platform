@@ -26,36 +26,51 @@ export default function ConformiteContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadGapAnalysis() {
       try {
         const res = await fetch('/api/compliance', {
           cache: 'no-store',
-          next: { revalidate: 60 }
         });
 
         if (!res.ok) throw new Error('Erreur lors du calcul');
 
         const data = await res.json();
-        setAnalysis(data);
-      } catch (err) {
-        console.error(err);
-        setError("Impossible de charger l'analyse de conformité");
+        if (!cancelled) {
+          setAnalysis(data);
+        }
+      } catch {
+        if (!cancelled) {
+          setError("Impossible de charger l'analyse de conformité");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
     if (session) {
       loadGapAnalysis();
     } else {
-      setLoading(false);
+      // Utiliser queueMicrotask pour éviter setState synchrone dans l'effect
+      queueMicrotask(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [session]);
 
   if (status === "loading" || loading) {
     return (
       <div className="flex items-center justify-center h-96 text-slate-400">
-        Calcul de l'analyse Gap ISO 27001 en cours...
+        Calcul de l&apos;analyse Gap ISO 27001 en cours...
       </div>
     );
   }
@@ -86,7 +101,11 @@ export default function ConformiteContent() {
         <div className="text-8xl font-bold text-white mb-2">{globalScore}%</div>
         <p className="text-2xl font-semibold text-emerald-400">Niveau de Conformité Global</p>
         <p className="text-slate-400 mt-2">
-          Basé sur {analysis?.totalControles} contrôles • {new Date(analysis?.lastUpdated || Date.now()).toLocaleDateString()}
+          Basé sur {analysis?.totalControles} contrôles • {
+            analysis?.lastUpdated 
+              ? new Date(analysis.lastUpdated).toLocaleDateString()
+              : 'Date non disponible'
+          }
         </p>
       </div>
 

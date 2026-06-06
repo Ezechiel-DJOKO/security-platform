@@ -30,12 +30,13 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error("❌ Erreur API /compliance:", error);
+    const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
     return NextResponse.json({
       success: false,
       error: "Erreur lors du calcul de l'analyse de conformité",
-      message: error.message,
+      message: errorMessage,
     }, { status: 500 });
   }
 }
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ error: "Action non supportée" }, { status: 400 });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

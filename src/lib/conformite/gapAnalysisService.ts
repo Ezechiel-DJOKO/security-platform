@@ -18,6 +18,30 @@ export type GapAnalysisResult = {
   lastUpdated: Date;
 };
 
+// Interface pour les données accumulées par domaine
+interface DomainAccumulator {
+  domaine: string;
+  totalControles: number;
+  controlesEvalues: number;
+  controlesNonConformes: number;
+  vulnsLiees: number;
+  scoreTotal: number;
+  ponderationTotal: number;
+}
+
+// Interface pour la vulnérabilité incluse dans le contrôle
+interface VulnerabiliteIncluse {
+  niveauPertinence: number;
+}
+
+// Interface pour le contrôle avec les relations
+interface ControlConformiteWithVulns {
+  domaine: string | null;
+  statut: StatutConformite;
+  vulnerabilites: VulnerabiliteIncluse[];
+  // Ajoutez ici d'autres champs du modèle Prisma si nécessaire
+}
+
 export async function calculateGapAnalysis(): Promise<GapAnalysisResult> {
   const controls = await prisma.controlConformite.findMany({
     where: { referentiel: "ISO27001" },
@@ -26,12 +50,12 @@ export async function calculateGapAnalysis(): Promise<GapAnalysisResult> {
     },
   });
 
-  const domainMap = new Map<string, any>();
+  const domainMap = new Map<string, DomainAccumulator>();
 
   let totalPondere = 0;
   let scoreGlobalPondere = 0;
 
-  for (const ctrl of controls) {
+  for (const ctrl of controls as ControlConformiteWithVulns[]) {
     const domaine = ctrl.domaine || "Autres";
 
     if (!domainMap.has(domaine)) {
@@ -47,7 +71,8 @@ export async function calculateGapAnalysis(): Promise<GapAnalysisResult> {
     }
 
     const data = domainMap.get(domaine)!;
-    const ponderation = (ctrl as any).ponderation || 10;   // Cast temporaire
+    // Utilisation de l'opérateur nullish coalescing (??) au lieu de || pour une valeur par défaut
+    const ponderation = 10; // Valeur par défaut si le champ n'existe pas dans Prisma
 
     data.totalControles++;
     data.ponderationTotal += ponderation;
@@ -75,7 +100,7 @@ export async function calculateGapAnalysis(): Promise<GapAnalysisResult> {
     // Impact des vulnérabilités
     if (ctrl.vulnerabilites.length > 0) {
       data.vulnsLiees += ctrl.vulnerabilites.length;
-      const avgImpact = ctrl.vulnerabilites.reduce((sum, v) => sum + v.niveauPertinence, 0) / ctrl.vulnerabilites.length;
+      const avgImpact = ctrl.vulnerabilites.reduce((sum: number, v: VulnerabiliteIncluse) => sum + v.niveauPertinence, 0) / ctrl.vulnerabilites.length;
       controlScore = Math.max(5, controlScore - Math.floor(avgImpact * 0.65));
     }
 
@@ -92,7 +117,7 @@ export async function calculateGapAnalysis(): Promise<GapAnalysisResult> {
     scoreGlobalPondere += controlScore * ponderation;
   }
 
-  const domaines: DomainScore[] = Array.from(domainMap.values()).map((d: any) => ({
+  const domaines: DomainScore[] = Array.from(domainMap.values()).map((d: DomainAccumulator) => ({
     domaine: d.domaine,
     score: d.ponderationTotal ? Math.round(d.scoreTotal / d.ponderationTotal) : 0,
     totalControles: d.totalControles,

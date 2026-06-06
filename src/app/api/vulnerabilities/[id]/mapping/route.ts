@@ -32,12 +32,13 @@ export async function POST(
       data: result,
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error("Erreur lors du mapping automatique :", error);
+    const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
     return NextResponse.json(
       { 
         error: "Erreur lors de l'application du mapping",
-        details: error.message 
+        details: errorMessage 
       },
       { status: 500 }
     );
@@ -66,7 +67,7 @@ export async function GET(
       success: true,
       data: mappings,
     });
-  } catch (error: any) {
+  } catch {
     return NextResponse.json(
       { error: "Erreur lors de la récupération des mappings" },
       { status: 500 }

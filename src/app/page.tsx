@@ -32,7 +32,7 @@ export default function Home() {
         <div className="max-w-4xl mx-auto text-center space-y-8">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-900/30 border border-blue-800/50 rounded-full text-blue-400 text-sm">
             <Lock className="w-4 h-4" />
-            Plateforme d'audit de sécurité
+            Plateforme d&apos;audit de sécurité
           </div>
 
           <h2 className="text-5xl font-bold text-white leading-tight">
@@ -69,14 +69,14 @@ export default function Home() {
                 <FileText className="w-6 h-6 text-emerald-400" />
               </div>
               <h3 className="text-lg font-semibold text-white mb-2">Conformité</h3>
-              <p className="text-sm text-slate-400">Suivi des contrôles de conformité et génération de rapports d'audit.</p>
+              <p className="text-sm text-slate-400">Suivi des contrôles de conformité et génération de rapports d&apos;audit.</p>
             </div>
 
             <div className="p-6 bg-slate-900 border border-slate-800 rounded-xl hover:border-slate-700 transition-colors">
               <div className="w-12 h-12 bg-purple-900/30 rounded-lg flex items-center justify-center mb-4">
                 <Users className="w-6 h-6 text-purple-400" />
               </div>
-              <h3 className="text-lg font-semibold text-white mb-2">Gestion d'Équipe</h3>
+              <h3 className="text-lg font-semibold text-white mb-2">Gestion d&apos;Équipe</h3>
               <p className="text-sm text-slate-400">Assignation des vulnérabilités et suivi des plans de correction.</p>
             </div>
           </div>

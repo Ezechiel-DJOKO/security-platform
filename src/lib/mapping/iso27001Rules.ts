@@ -117,14 +117,24 @@ export const iso27001MappingRules: MappingRule[] = [
   },
 ];
 
-export function getSuggestedControls(vuln: {
+// Interface pour la vulnérabilité en entrée
+export interface VulnerabilityInput {
   titre: string;
   description?: string;
   severite?: string;
   cveId?: string;
-}) {
+}
+
+// Interface pour la suggestion de contrôle
+export interface ControlSuggestion {
+  controleCode: string;
+  niveauPertinence: number;
+  justification: string;
+}
+
+export function getSuggestedControls(vuln: VulnerabilityInput): ControlSuggestion[] {
   const text = `${vuln.titre} ${vuln.description || ""} ${vuln.cveId || ""}`.toLowerCase();
-  const suggestions: any[] = [];
+  const suggestions: ControlSuggestion[] = [];
 
   for (const rule of iso27001MappingRules) {
     const match = rule.keywords.some(kw => text.includes(kw.toLowerCase()));
@@ -147,7 +157,7 @@ export function getSuggestedControls(vuln: {
   }
 
   // Déduplication + meilleur score
-  const unique = new Map<string, any>();
+  const unique = new Map<string, ControlSuggestion>();
   for (const sug of suggestions) {
     const existing = unique.get(sug.controleCode);
     if (!existing || existing.niveauPertinence < sug.niveauPertinence) {
