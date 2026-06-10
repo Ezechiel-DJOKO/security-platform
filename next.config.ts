@@ -1,7 +1,10 @@
-import type { NextConfig } from "next";
+// next.config.ts
+import createNextIntlPlugin from 'next-intl/plugin';
 
-const nextConfig: NextConfig = {
-  serverExternalPackages: ["@prisma/client", "pg"], // <-- Ajoutez "pg" ici
+const withNextIntl = createNextIntlPlugin();
+
+const nextConfig = {
+  serverExternalPackages: ["@prisma/client", "pg"],
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

@@ -24,6 +24,7 @@
     "lucide-react": "^1.16.0",
     "next": "16.2.6",
     "next-auth": "^4.24.14",
+    "next-intl": "^4.13.0",
     "pg": "^8.21.0",
     "pusher": "^5.3.3",
     "pusher-js": "^8.5.0",
@@ -33,7 +34,7 @@
     "tailwind-merge": "^3.6.0"
   },
   "prisma": {
-     "seed": "ts-node --compiler-options {\\\"module\\\":\\\"CommonJS\\\"} seed.ts"
+    "seed": "ts-node --compiler-options {\\\"module\\\":\\\"CommonJS\\\"} seed.ts"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
