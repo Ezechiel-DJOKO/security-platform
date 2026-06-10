@@ -1,0 +1,216 @@
+.
+├── AGENTS.md
+├── CLAUDE.md
+├── coverage
+│   ├── base.css
+│   ├── block-navigation.js
+│   ├── favicon.png
+│   ├── index.html
+│   ├── prettify.css
+│   ├── prettify.js
+│   ├── sort-arrow-sprite.png
+│   ├── sorter.js
+│   └── vulnerabilityActions.ts.html
+├── create-actif.ts
+├── curl_response
+├── eslint.config.mjs
+├── index.html
+├── index.html.1
+├── install_nuclei.sh
+├── next.config.ts
+├── next-env.d.ts
+├── nuclei.zip
+├── package.json
+├── package-lock.json
+├── postcss.config.mjs
+├── prisma
+│   ├── migrations
+│   │   ├── 20260603222243_add_iso27001_mapping
+│   │   │   └── migration.sql
+│   │   ├── 20260606150404_add_ponderation_gap
+│   │   │   └── migration.sql
+│   │   ├── 20260606151033_add_ponderation_and_statut_gap_analysis
+│   │   │   └── migration.sql
+│   │   ├── 20260607081659_add_kpi_fields
+│   │   │   └── migration.sql
+│   │   └── migration_lock.toml
+│   ├── schema.prisma
+│   └── seed-iso27001.ts
+├── prisma.config.ts
+├── public
+│   ├── file.svg
+│   ├── globe.svg
+│   ├── next.svg
+│   ├── vercel.svg
+│   └── window.svg
+├── python-scanner
+│   ├── generer_rapport.py
+│   ├── import_to_prisma.py
+│   ├── rapport_grype_nginx_latest.json
+│   ├── rapport_nuclei__badssl.com.json
+│   ├── rapport_openvas_192.168.10.50.json
+│   ├── requirements.txt
+│   ├── scan.py
+│   ├── tableau_de_bord_remediation.csv
+│   ├── test_scan.py
+│   └── venv
+│       ├── bin
+│       │   ├── activate
+│       │   ├── activate.csh
+│       │   ├── activate.fish
+│       │   ├── Activate.ps1
+│       │   ├── coverage
+│       │   ├── coverage3
+│       │   ├── coverage-3.14
+│       │   ├── dotenv
+│       │   ├── gvm-cli
+│       │   ├── gvm-pyshell
+│       │   ├── gvm-script
+│       │   ├── httpx
+│       │   ├── idna
+│       │   ├── inv
+│       │   ├── invoke
+│       │   ├── nodeenv
+│       │   ├── normalizer
+│       │   ├── pip
+│       │   ├── pip3
+│       │   ├── pip3.14
+│       │   ├── prisma
+│       │   ├── prisma-client-py
+│       │   ├── pygmentize
+│       │   ├── py.test
+│       │   ├── pytest
+│       │   ├── python -> python3
+│       │   ├── python3 -> /usr/bin/python3
+│       │   ├── python3.14 -> python3
+│       │   └── 𝜋thon -> python3
+│       ├── include
+│       ├── lib
+│       │   └── python3.14
+│       ├── lib64 -> lib
+│       └── pyvenv.cfg
+├── rapport_openvas_192.168.10.50.json
+├── scripts
+├── seed.ts
+├── src
+│   ├── actions
+│   │   └── vulnerabilityActions.ts
+│   ├── app
+│   │   ├── actions
+│   │   │   └── scan-actions.ts
+│   │   ├── api
+│   │   │   ├── audit
+│   │   │   ├── auth
+│   │   │   ├── compliance
+│   │   │   ├── conformite
+│   │   │   ├── cron
+│   │   │   ├── kpis
+│   │   │   ├── notify
+│   │   │   ├── scans
+│   │   │   ├── test-scan
+│   │   │   ├── users
+│   │   │   └── vulnerabilities
+│   │   ├── auth
+│   │   │   └── login
+│   │   ├── (dashboard)
+│   │   │   ├── actifs
+│   │   │   ├── conformite
+│   │   │   ├── dashboard
+│   │   │   ├── inventaire
+│   │   │   ├── layout.tsx
+│   │   │   ├── page.tsx
+│   │   │   ├── plans-correction
+│   │   │   ├── rapports
+│   │   │   ├── scans
+│   │   │   └── vulnerabilites
+│   │   ├── favicon.ico
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   ├── page.tsx
+│   │   └── users
+│   │       └── page.tsx
+│   ├── components
+│   │   ├── actifs
+│   │   ├── AlertListener.tsx
+│   │   ├── common
+│   │   │   ├── DataTableSkeleton.tsx
+│   │   │   ├── DataTable.tsx
+│   │   │   ├── Skeleton.tsx
+│   │   │   └── StatusBadge.tsx
+│   │   ├── ConformiteContent.tsx
+│   │   ├── dashboard
+│   │   │   ├── KPICardSkeleton.tsx
+│   │   │   └── KPICards.tsx
+│   │   ├── DashboardContent.tsx
+│   │   ├── forms
+│   │   ├── header.tsx
+│   │   ├── InventaireContent.tsx
+│   │   ├── providers
+│   │   │   ├── AuthProvider.tsx
+│   │   │   └── ClientLayout.tsx
+│   │   ├── RapportsContent.tsx
+│   │   ├── RoleGate.tsx
+│   │   ├── scans
+│   │   │   └── GestionnaireScanCard.tsx
+│   │   ├── sidebar.tsx
+│   │   ├── ui
+│   │   │   ├── button.tsx
+│   │   │   └── input.tsx
+│   │   └── vulnerabilites
+│   │       ├── AssignModal.tsx
+│   │       ├── VulnerabilitiesTable.tsx
+│   │       ├── VulnerabilityDetailModal.tsx
+│   │       ├── VulnerabilityMapping.tsx
+│   │       └── VulnerabilityStats.tsx
+│   ├── features
+│   │   ├── scans
+│   │   │   ├── actions.ts
+│   │   │   ├── repository.ts
+│   │   │   ├── service.ts
+│   │   │   ├── __tests__
+│   │   │   └── types.ts
+│   │   └── vulnerabilites
+│   │       ├── repository.ts
+│   │       └── __tests__
+│   ├── hooks
+│   ├── i18n
+│   │   ├── messages
+│   │   │   ├── en.json
+│   │   │   └── fr.json
+│   │   ├── request.ts
+│   │   └── routing.ts
+│   ├── lib
+│   │   ├── audit.ts
+│   │   ├── auth.ts
+│   │   ├── conformite
+│   │   │   ├── gapAnalysisService.ts
+│   │   │   └── __tests__
+│   │   ├── kpi.ts
+│   │   ├── mapping
+│   │   │   ├── iso27001Rules.ts
+│   │   │   └── vulnerabilityMappingService.ts
+│   │   ├── prisma.ts
+│   │   ├── rbac.ts
+│   │   ├── scanner
+│   │   │   ├── nuclei.ts
+│   │   │   ├── openvas.ts
+│   │   │   └── postScanProcessor.ts
+│   │   ├── scan.ts
+│   │   ├── session.ts
+│   │   ├── __tests__
+│   │   │   ├── auth.test.ts
+│   │   │   ├── rbac.test.ts
+│   │   │   ├── setup.ts
+│   │   │   └── vulnerabilities.test.ts
+│   │   └── utils.ts
+│   ├── proxy.ts
+│   └── types
+│       └── next-auth.d.ts
+├── tableau_de_bord_remediation.csv
+├── tree.txt
+├── tsconfig.json
+├── tsconfig.tsbuildinfo
+├── vercel.json
+└── vitest.config.ts
+
+69 directories, 145 files
