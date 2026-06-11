@@ -1,0 +1,237 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import * as XLSX from 'xlsx';
+import puppeteer from 'puppeteer';
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const format = searchParams.get('format') || 'json';
+
+  try {
+    const [vulnerabilities, controles] = await Promise.all([
+      prisma.vulnerabilite.findMany({
+        take: 100,
+        select: { id: true, titre: true, severite: true, scoreCVSS: true, statut: true, dateDecouverte: true },
+      }),
+      prisma.controlConformite.findMany({
+        take: 50,
+        select: { id: true, code: true, nom: true, statut: true, referentiel: true },
+      }),
+    ]);
+
+    const recommendations = generateRecommendations(vulnerabilities, controles);
+
+    const data = {
+      success: true,
+      metadata: {
+        genereLe: new Date().toISOString(),
+        format,
+        totalVulnerabilites: vulnerabilities.length,
+        totalControles: controles.length,
+      },
+      vulnerabilites: vulnerabilities,
+      controles,
+      recommendations,
+      statistiques: {
+        parSeverite: groupBySeverity(vulnerabilities),
+        conformite: calculateConformite(controles),
+      }
+    };
+
+    if (format === 'xlsx') return exportExcel(data);
+    if (format === 'pdf') return await exportPDF(data);
+
+    return NextResponse.json(data);
+
+  } catch (error: any) {
+    console.error('Erreur API Export:', error);
+    return NextResponse.json({ error: 'Erreur serveur', details: error.message }, { status: 500 });
+  }
+}
+
+// ================== RECOMMANDATIONS AUTOMATIQUES ==================
+function generateRecommendations(vulnerabilities: any[], controles: any[]) {
+  const recs: any[] = [];
+
+  const criticalVulns = vulnerabilities.filter(v => 
+    v.severite === 'CRITIQUE' || (v.scoreCVSS && v.scoreCVSS >= 9.0)
+  );
+
+  if (criticalVulns.length > 0) {
+    recs.push({
+      priorite: "HAUTE",
+      titre: `Corriger les ${criticalVulns.length} vulnérabilités critiques`,
+      description: "Ces vulnérabilités peuvent être exploitées à distance et sans authentification.",
+      action: "Appliquer les patches immédiatement + analyse approfondie des actifs concernés.",
+      delai: "Sous 48 heures"
+    });
+  }
+
+  const nonConformes = controles.filter(c => c.statut === 'NON_CONFORME');
+  if (nonConformes.length > 0) {
+    recs.push({
+      priorite: "MOYENNE",
+      titre: "Améliorer le taux de conformité",
+      description: `${nonConformes.length} contrôles ne sont pas conformes.`,
+      action: "Définir un plan de remédiation pour les contrôles ISO27001 / SOC2 / etc.",
+      delai: "Sous 15 jours"
+    });
+  }
+
+  recs.push({
+    priorite: "BASSE",
+    titre: "Mettre en place une revue mensuelle",
+    description: "Automatiser les scans et générer des rapports périodiques.",
+    action: "Planifier un scan complet tous les 15 jours + revue des logs.",
+    delai: "Ongoing"
+  });
+
+  return recs;
+}
+
+function groupBySeverity(vulns: any[]) {
+  const stats: Record<string, number> = {};
+  vulns.forEach(v => {
+    const sev = v.severite || 'UNKNOWN';
+    stats[sev] = (stats[sev] || 0) + 1;
+  });
+  return stats;
+}
+
+function calculateConformite(controles: any[]) {
+  const total = controles.length;
+  const conforme = controles.filter(c => c.statut === 'CONFORME').length;
+  return {
+    tauxConformite: total ? Math.round((conforme / total) * 100) : 0,
+    conforme,
+    nonConforme: total - conforme,
+  };
+}
+
+// ================== EXPORTS ==================
+function exportExcel(data: any) {
+  const wb = XLSX.utils.book_new();
+
+  const vulnsData = data.vulnerabilites.map((v: any) => ({
+    ID: v.id,
+    Titre: v.titre,
+    Severite: v.severite,
+    CVSS: v.scoreCVSS,
+    Statut: v.statut,
+    Date: v.dateDecouverte ? new Date(v.dateDecouverte).toLocaleDateString('fr-FR') : '',
+  }));
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vulnsData), "Vulnérabilités");
+
+  const conformiteData = data.controles.map((c: any) => ({
+    Code: c.code,
+    Nom: c.nom,
+    Referentiel: c.referentiel,
+    Statut: c.statut,
+  }));
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(conformiteData), "Conformité");
+
+  const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
+
+  return new NextResponse(buffer, {
+    headers: {
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="rapport-securite-${new Date().toISOString().slice(0,10)}.xlsx"`,
+    },
+  });
+}
+
+async function exportPDF(data: any) {
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+  });
+
+  try {
+    const page = await browser.newPage();
+    const html = generatePDFHTML(data);
+    await page.setContent(html, { waitUntil: 'load' });
+
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: { top: 40, right: 40, bottom: 40, left: 40 },
+    });
+
+    return new NextResponse(pdfBuffer as any, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="rapport-securite-${new Date().toISOString().slice(0,10)}.pdf"`,
+      },
+    });
+  } finally {
+    await browser.close();
+  }
+}
+
+function generatePDFHTML(data: any) {
+  const recsHTML = data.recommendations.map((rec: any, index: number) => `
+    <tr>
+      <td style="background-color: ${rec.priorite === 'HAUTE' ? '#fee2e2' : rec.priorite === 'MOYENNE' ? '#fef3c7' : '#ecfdf5'}; font-weight: bold;">
+        ${rec.priorite}
+      </td>
+      <td><strong>${rec.titre}</strong></td>
+      <td>${rec.description}</td>
+      <td>${rec.action}</td>
+      <td>${rec.delai}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Rapport de Sécurité</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 40px; color: #111; line-height: 1.5; }
+        h1 { color: #1e40af; text-align: center; }
+        h2 { color: #1e40af; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #999; padding: 10px; text-align: left; vertical-align: top; }
+        th { background-color: #f1f5f9; }
+        .priorite-haute { background-color: #fee2e2; }
+      </style>
+    </head>
+    <body>
+      <h1>Rapport de Sécurité</h1>
+      <p><strong>Généré le :</strong> ${new Date().toLocaleDateString('fr-FR')}</p>
+
+      <h2>Synthèse</h2>
+      <p><strong>Total Vulnérabilités :</strong> ${data.metadata.totalVulnerabilites}</p>
+      <p><strong>Taux de Conformité :</strong> ${data.statistiques.conformite.tauxConformite}%</p>
+
+      <h2>Recommandations Prioritaires</h2>
+      <table>
+        <tr>
+          <th>Priorité</th>
+          <th>Titre</th>
+          <th>Description</th>
+          <th>Action Recommandée</th>
+          <th>Délai</th>
+        </tr>
+        ${recsHTML}
+      </table>
+
+      <h2>Vulnérabilités Récentes</h2>
+      <table>
+        <tr><th>ID</th><th>Titre</th><th>Sévérité</th><th>Score CVSS</th></tr>
+        ${data.vulnerabilites.slice(0, 10).map((v: any) => `
+          <tr>
+            <td>${v.id}</td>
+            <td>${v.titre}</td>
+            <td>${v.severite}</td>
+            <td>${v.scoreCVSS || 'N/A'}</td>
+          </tr>
+        `).join('')}
+      </table>
+    </body>
+    </html>`;
+}
