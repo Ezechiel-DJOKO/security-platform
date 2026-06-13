@@ -1,8 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
-
 import { VulnerabilitiesTable } from '@/components/vulnerabilites/VulnerabilitiesTable';
 import { VulnerabilityStats } from '@/components/vulnerabilites/VulnerabilityStats';
 import { Button } from '@/components/ui/button';

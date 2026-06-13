@@ -8,6 +8,7 @@ import {
   FileText,
   ScanLine,
   Bug,
+  CheckSquare,
   Users
 } from 'lucide-react';
 
@@ -17,8 +18,9 @@ const navItems = [
   { href: '/vulnerabilites', label: 'Vulnérabilités', icon: Bug },
   { href: '/conformite', label: 'Conformité', icon: ShieldCheck },
   { href: '/scans', label: 'Scans', icon: ScanLine },
+  { href: '/plans-correction', label: 'Plans de correction', icon: CheckSquare },
   { href: '/rapports', label: 'Rapports', icon: FileText },
-  { href: '/plans-correction', label: 'Plans de correction', icon: ShieldCheck }, // à adapter
+  { href: '/utilisateurs', label: 'Utilisateurs', icon: Users }, // Ajoute l'import { Users } from 'lucide-react'
 ];
 
 export default function Sidebar() {

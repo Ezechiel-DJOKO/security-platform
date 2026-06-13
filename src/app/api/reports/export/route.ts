@@ -3,6 +3,53 @@ import { prisma } from '@/lib/prisma';
 import * as XLSX from 'xlsx';
 import puppeteer from 'puppeteer';
 
+// Interfaces pour les types
+interface Vulnerabilite {
+  id: string;
+  titre: string;
+  severite: string;
+  scoreCVSS: number | null;
+  statut: string;
+  dateDecouverte: Date | null;
+}
+
+interface Controle {
+  id: string;
+  code: string;
+  nom: string;
+  statut: string;
+  referentiel: string;
+}
+
+interface Recommandation {
+  priorite: string;
+  titre: string;
+  description: string;
+  action: string;
+  delai: string;
+}
+
+interface ExportData {
+  success: boolean;
+  metadata: {
+    genereLe: string;
+    format: string;
+    totalVulnerabilites: number;
+    totalControles: number;
+  };
+  vulnerabilites: Vulnerabilite[];
+  controles: Controle[];
+  recommendations: Recommandation[];
+  statistiques: {
+    parSeverite: Record<string, number>;
+    conformite: {
+      tauxConformite: number;
+      conforme: number;
+      nonConforme: number;
+    };
+  };
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const format = searchParams.get('format') || 'json';
@@ -21,7 +68,7 @@ export async function GET(request: NextRequest) {
 
     const recommendations = generateRecommendations(vulnerabilities, controles);
 
-    const data = {
+    const data: ExportData = {
       success: true,
       metadata: {
         genereLe: new Date().toISOString(),
@@ -43,15 +90,16 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data);
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Erreur API Export:', error);
-    return NextResponse.json({ error: 'Erreur serveur', details: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Erreur inconnue';
+    return NextResponse.json({ error: 'Erreur serveur', details: message }, { status: 500 });
   }
 }
 
 // ================== RECOMMANDATIONS AUTOMATIQUES ==================
-function generateRecommendations(vulnerabilities: any[], controles: any[]) {
-  const recs: any[] = [];
+function generateRecommendations(vulnerabilities: Vulnerabilite[], controles: Controle[]) {
+  const recs: Recommandation[] = [];
 
   const criticalVulns = vulnerabilities.filter(v => 
     v.severite === 'CRITIQUE' || (v.scoreCVSS && v.scoreCVSS >= 9.0)
@@ -89,7 +137,7 @@ function generateRecommendations(vulnerabilities: any[], controles: any[]) {
   return recs;
 }
 
-function groupBySeverity(vulns: any[]) {
+function groupBySeverity(vulns: Vulnerabilite[]) {
   const stats: Record<string, number> = {};
   vulns.forEach(v => {
     const sev = v.severite || 'UNKNOWN';
@@ -98,7 +146,7 @@ function groupBySeverity(vulns: any[]) {
   return stats;
 }
 
-function calculateConformite(controles: any[]) {
+function calculateConformite(controles: Controle[]) {
   const total = controles.length;
   const conforme = controles.filter(c => c.statut === 'CONFORME').length;
   return {
@@ -109,10 +157,10 @@ function calculateConformite(controles: any[]) {
 }
 
 // ================== EXPORTS ==================
-function exportExcel(data: any) {
+function exportExcel(data: ExportData) {
   const wb = XLSX.utils.book_new();
 
-  const vulnsData = data.vulnerabilites.map((v: any) => ({
+  const vulnsData = data.vulnerabilites.map(v => ({
     ID: v.id,
     Titre: v.titre,
     Severite: v.severite,
@@ -123,7 +171,7 @@ function exportExcel(data: any) {
 
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vulnsData), "Vulnérabilités");
 
-  const conformiteData = data.controles.map((c: any) => ({
+  const conformiteData = data.controles.map(c => ({
     Code: c.code,
     Nom: c.nom,
     Referentiel: c.referentiel,
@@ -142,7 +190,7 @@ function exportExcel(data: any) {
   });
 }
 
-async function exportPDF(data: any) {
+async function exportPDF(data: ExportData) {
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
@@ -159,7 +207,7 @@ async function exportPDF(data: any) {
       margin: { top: 40, right: 40, bottom: 40, left: 40 },
     });
 
-    return new NextResponse(pdfBuffer as any, {
+    return new NextResponse(pdfBuffer as Buffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
@@ -171,8 +219,8 @@ async function exportPDF(data: any) {
   }
 }
 
-function generatePDFHTML(data: any) {
-  const recsHTML = data.recommendations.map((rec: any, index: number) => `
+function generatePDFHTML(data: ExportData) {
+  const recsHTML = data.recommendations.map(rec => `
     <tr>
       <td style="background-color: ${rec.priorite === 'HAUTE' ? '#fee2e2' : rec.priorite === 'MOYENNE' ? '#fef3c7' : '#ecfdf5'}; font-weight: bold;">
         ${rec.priorite}
@@ -223,7 +271,7 @@ function generatePDFHTML(data: any) {
       <h2>Vulnérabilités Récentes</h2>
       <table>
         <tr><th>ID</th><th>Titre</th><th>Sévérité</th><th>Score CVSS</th></tr>
-        ${data.vulnerabilites.slice(0, 10).map((v: any) => `
+        ${data.vulnerabilites.slice(0, 10).map(v => `
           <tr>
             <td>${v.id}</td>
             <td>${v.titre}</td>

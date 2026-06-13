@@ -1,6 +1,18 @@
 // src/lib/kpi.ts
 import { prisma } from './prisma';
 
+interface TrendItem {
+  mois: string;
+  vulns: number;
+  scoreMoyen: number;
+}
+
+interface CVSSDistribution {
+  name: string;
+  value: number;
+  color: string;
+}
+
 export async function getKPIs() {
   try {
     const [totalVulns, critiques, ouvertes, corrigees, scoreAvgResult] = await Promise.all([
@@ -15,7 +27,7 @@ export async function getKPIs() {
       ? Math.round(scoreAvgResult._avg.scoreCVSS * 10) / 10 
       : 0;
 
-    const cvssDistribution = [
+    const cvssDistribution: CVSSDistribution[] = [
       { name: 'Critique (9-10)', value: await prisma.vulnerabilite.count({ where: { scoreCVSS: { gte: 9 } } }), color: '#ef4444' },
       { name: 'Haute (7-8.9)', value: await prisma.vulnerabilite.count({ where: { scoreCVSS: { gte: 7, lt: 9 } } }), color: '#f97316' },
       { name: 'Moyenne (4-6.9)', value: await prisma.vulnerabilite.count({ where: { scoreCVSS: { gte: 4, lt: 7 } } }), color: '#eab308' },
@@ -35,10 +47,10 @@ export async function getKPIs() {
 
     const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
 
-    const temporalTrends = rawTrends.reduce((acc: any[], curr: any) => {
+    const temporalTrends = rawTrends.reduce<TrendItem[]>((acc, curr) => {
       const date = new Date(curr.dateDecouverte);
       const mois = monthNames[date.getMonth()];
-      const existing = acc.find((t: any) => t.mois === mois);
+      const existing = acc.find((t) => t.mois === mois);
 
       if (existing) {
         const prevCount = existing.vulns || 0;

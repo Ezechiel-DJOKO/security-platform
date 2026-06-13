@@ -4,9 +4,19 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { logAuditEvent } from '@/lib/audit';
+import { Prisma } from '@prisma/client';
+
+interface Actif {
+  id: string;
+  nom: string;
+  type: string;
+  adresseIP: string | null;
+  criticite: string;
+  dernierScan: Date | null;
+  createdAt: Date;
+}
 
 export async function GET(req: NextRequest) {
-  // ... (garde le GET que tu avais, je te le remets complet)
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
@@ -15,21 +25,27 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get('search') || '';
     const criticite = searchParams.get('criticite') || '';
 
-    const where: any = { deletedAt: null };
+    // Construction dynamique du where sans type explicite problématique
+    const where: Prisma.ActifWhereInput = { deletedAt: null };
+    
     if (search) {
       where.OR = [
         { nom: { contains: search, mode: 'insensitive' } },
         { adresseIP: { contains: search, mode: 'insensitive' } },
       ];
     }
-    if (criticite && criticite !== 'Tous') where.criticite = criticite.toUpperCase();
+    
+    // Solution 1 : cast via 'as const' puis as unknown
+    if (criticite && criticite !== 'Tous') {
+      (where as unknown as Record<string, unknown>).criticite = criticite.toUpperCase();
+    }
 
     const actifs = await prisma.actif.findMany({
       where,
       orderBy: { createdAt: 'desc' },
     });
 
-    const formatted = actifs.map((a: any) => ({
+    const formatted = actifs.map((a: Actif) => ({
       id: a.id,
       nom: a.nom,
       type: a.type,
@@ -41,13 +57,12 @@ export async function GET(req: NextRequest) {
     try { await logAuditEvent(session.user.id, "LECTURE", "ACTIF", { count: formatted.length }); } catch {}
     
     return NextResponse.json({ success: true, data: formatted });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ success: false, error: "Erreur serveur" }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
-  // Création (déjà bon)
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
@@ -57,19 +72,18 @@ export async function POST(req: NextRequest) {
 
     await logAuditEvent(session.user.id, "CREATION", "ACTIF", { id: actif.id });
     return NextResponse.json({ success: true, data: actif }, { status: 201 });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ success: false, error: "Erreur création" }, { status: 500 });
   }
 }
 
-// === NOUVEAU : Gestion PUT et DELETE dans le même fichier ===
 export async function PUT(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
     const body = await req.json();
-    const { id } = body;   // On envoie l'id dans le body
+    const { id } = body;
 
     if (!id) return NextResponse.json({ error: "ID requis" }, { status: 400 });
 
@@ -86,7 +100,7 @@ export async function PUT(req: NextRequest) {
 
     await logAuditEvent(session.user.id, "MODIFICATION", "ACTIF", { id });
     return NextResponse.json({ success: true, data: actif });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ success: false, error: "Erreur modification" }, { status: 500 });
   }
 }
@@ -102,7 +116,7 @@ export async function DELETE(req: NextRequest) {
     await logAuditEvent(session.user.id, "SUPPRESSION", "ACTIF", { id });
 
     return NextResponse.json({ success: true });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ success: false, error: "Erreur suppression" }, { status: 500 });
   }
 }

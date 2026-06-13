@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
-// === DONNÉES STATIQUES ===
+// Données statiques
 const rapportsRecents = [
   { id: "RPT-202605", titre: "Rapport Mensuel de Sécurité - Mai 2026", type: "Synthèse", date: "24 Mai 2026", taille: "2.4 MB" },
   { id: "RPT-202604", titre: "Audit des Vulnérabilités Q2 2026", type: "Technique", date: "15 Mai 2026", taille: "4.1 MB" },
@@ -47,7 +47,7 @@ export default function RapportsContent() {
     return <div className="text-center py-12 text-amber-500">Vous devez être connecté pour accéder aux rapports.</div>;
   }
 
-  // Fonctions d'export (à compléter avec ton code existant)
+  // Fonctions d'export
   const exportJSON = async () => {
     setIsExporting(true);
     try {
@@ -126,18 +126,20 @@ export default function RapportsContent() {
   };
 
   const downloadRecentReport = (id: string, titre: string) => {
-    alert(`📥 Téléchargement lancé : ${titre}\n\n(ID: ${id})\n\nCette fonctionnalité sera connectée à la base de données prochainement.`);
+    alert(`📥 Téléchargement du rapport :\n${titre}\n\n(ID: ${id})\n\nFonctionnalité en cours de développement.`);
   };
 
   return (
     <div className="space-y-8">
+      {/* En-tête */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-white">Rapports & Analyses</h1>
-          <p className="text-slate-400">Génération et gestion des rapports de sécurité</p>
+          <p className="text-slate-400 mt-1">Génération intelligente de rapports de sécurité</p>
         </div>
 
-        <div className="flex gap-3">
+        {/* Boutons d'export */}
+        <div className="flex gap-3 flex-wrap">
           <button onClick={exportJSON} disabled={isExporting} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-5 py-3 rounded-2xl text-white disabled:opacity-50">
             <FileJson className="w-5 h-5" /> JSON
           </button>
@@ -157,7 +159,7 @@ export default function RapportsContent() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-8 bg-slate-950 border border-slate-800 rounded-3xl p-6">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xl font-semibold text-white">Évolution des Incidents</h3>
+            <h3 className="text-xl font-semibold text-white">Évolution des Incidents et Taux de Résolution</h3>
             <Calendar className="w-5 h-5 text-slate-500" />
           </div>
           <ResponsiveContainer width="100%" height={380}>
@@ -165,7 +167,7 @@ export default function RapportsContent() {
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="mois" stroke="#64748b" />
               <YAxis stroke="#64748b" />
-              <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '8px' }} />
+              <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '8px', color: '#fff' }} />
               <Line type="monotone" dataKey="incidents" stroke="#ef4444" strokeWidth={4} name="Incidents" />
               <Line type="monotone" dataKey="resolution" stroke="#22c55e" strokeWidth={4} name="Résolution (%)" />
             </LineChart>

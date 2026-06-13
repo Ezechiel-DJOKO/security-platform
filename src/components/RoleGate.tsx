@@ -1,51 +1,53 @@
 'use client';
+
 import { ReactNode } from 'react';
 import { useSession } from 'next-auth/react';
 
 interface RoleGateProps {
   children: ReactNode;
-  allowedRoles: string[]; // ← Pluriel ici
+  allowedRoles: string[];
   fallback?: ReactNode;
 }
 
-export function RoleGate({ 
-  children, 
-  allowedRoles, 
-  fallback = null 
+export function RoleGate({
+  children,
+  allowedRoles,
+  fallback = null,
 }: RoleGateProps) {
-  
   const { data: session, status } = useSession();
 
-  // En cours de chargement
+  // Chargement en cours
   if (status === 'loading') {
     return (
       <div className="flex justify-center items-center h-64">
-        Chargement...
+        <div className="text-slate-400">Chargement des permissions...</div>
       </div>
     );
   }
 
-  // Non connecté
-  if (!session?.user?.role) {
+  // Non authentifié
+  if (!session?.user) {
     return <>{fallback}</>;
   }
 
   const userRole = session.user.role as string;
 
-  // Vérification des rôles autorisés
+  // Accès refusé
   if (!allowedRoles.includes(userRole)) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 text-slate-400">
-        <div className="text-6xl mb-4">🔒</div>
-        <h3 className="text-xl font-semibold mb-2">Accès refusé</h3>
+      <div className="flex flex-col items-center justify-center min-h-[70vh] text-slate-400">
+        <div className="text-7xl mb-6">🔒</div>
+        <h3 className="text-2xl font-semibold text-white mb-3">Accès Refusé</h3>
         <p className="text-center max-w-md">
-          Vous n&apos;avez pas les permissions nécessaires pour accéder à cette section.
-          <br />
-          Rôle requis : {allowedRoles.join(' ou ')}
+          Votre rôle (<span className="font-medium text-rose-400">{userRole}</span>) ne permet pas d’accéder à cette page.
+        </p>
+        <p className="mt-2 text-sm">
+          Rôles autorisés : <span className="font-medium">{allowedRoles.join(' • ')}</span>
         </p>
       </div>
     );
   }
 
+  // Accès autorisé
   return <>{children}</>;
 }

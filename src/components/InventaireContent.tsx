@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { Plus, Search, Edit2, Trash2 } from 'lucide-react';
 import { DataTable } from '@/components/common/DataTable';
@@ -10,52 +10,61 @@ interface Actif {
   id: string;
   nom: string;
   type: string;
+  adresseIP?: string | null;
+  criticite: string;
+  dernierScan?: string | null;
+  hostname?: string | null;
+}
+
+interface ActifFormData {
+  nom: string;
+  type: string;
   adresseIP?: string;
   criticite: string;
-  dernierScan?: string;
-  hostname?: string;
+  localisation?: string;
 }
 
 export default function InventaireContent() {
   const { data: session, status } = useSession();
+  
   const [actifs, setActifs] = useState<Actif[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCriticite, setFilterCriticite] = useState('Tous');
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingActif, setEditingActif] = useState<Actif | null>(null);
 
-  useEffect(() => {
-    fetchActifs();
-  }, [searchTerm, filterCriticite]);
-
-  const fetchActifs = async () => {
+  // Fetch des actifs
+  const fetchActifs = useCallback(async () => {
     try {
+      setLoading(true);
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
       if (filterCriticite !== 'Tous') params.append('criticite', filterCriticite);
 
       const res = await fetch(`/api/actifs?${params}`);
       const result = await res.json();
+
       if (result.success) {
-        setActifs(result.data);
+        setActifs(result.data || []);
       }
     } catch (error) {
-      console.error("Erreur fetch actifs:", error);
+      console.error("Erreur lors du chargement des actifs:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchTerm, filterCriticite]);
 
-  const handleCreateOrUpdate = async (data: any) => {
+  useEffect(() => {
+    fetchActifs();
+  }, [fetchActifs]);
+
+  const handleCreateOrUpdate = async (data: ActifFormData) => {
     try {
       const method = editingActif ? 'PUT' : 'POST';
-      const url = '/api/actifs';
-
       const payload = editingActif ? { ...data, id: editingActif.id } : data;
 
-      const res = await fetch(url, {
+      const res = await fetch('/api/actifs', {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -64,6 +73,8 @@ export default function InventaireContent() {
       if (res.ok) {
         fetchActifs();
         alert(editingActif ? "Actif modifié avec succès !" : "Actif créé avec succès !");
+        setIsModalOpen(false);
+        setEditingActif(null);
       } else {
         const error = await res.json();
         alert(error.error || "Erreur lors de l'opération");
@@ -132,7 +143,6 @@ export default function InventaireContent() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-
         <select
           className="bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 focus:border-blue-600 outline-none text-slate-300"
           value={filterCriticite}
@@ -152,7 +162,7 @@ export default function InventaireContent() {
           data={actifs}
           columns={[
             { accessor: 'id', header: 'ID' },
-            { accessor: 'nom', header: 'Nom de l’Actif' },
+            { accessor: 'nom', header: "Nom de l'Actif" },
             { accessor: 'type', header: 'Type' },
             { accessor: 'adresseIP', header: 'Adresse IP' },
             {
