@@ -17,7 +17,7 @@ export default async function ScansPage() {
   });
 
   return (
-    <RoleGate allowedRoles={['ADMIN', 'AUDITEUR', 'SUPERVISEUR']}>
+    <RoleGate allowedRoles={['ADMIN', 'AUDITEUR']}>
       <div className="p-8 w-full min-h-screen bg-slate-950">
         <div className="flex justify-between items-center mb-8">
           <div>

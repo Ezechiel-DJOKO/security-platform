@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import * as XLSX from 'xlsx';
 import puppeteer from 'puppeteer';
 
-// Interfaces pour les types
+// Interfaces
 interface Vulnerabilite {
   id: string;
   titre: string;
@@ -58,11 +58,24 @@ export async function GET(request: NextRequest) {
     const [vulnerabilities, controles] = await Promise.all([
       prisma.vulnerabilite.findMany({
         take: 100,
-        select: { id: true, titre: true, severite: true, scoreCVSS: true, statut: true, dateDecouverte: true },
+        select: { 
+          id: true, 
+          titre: true, 
+          severite: true, 
+          scoreCVSS: true, 
+          statut: true, 
+          dateDecouverte: true 
+        },
       }),
       prisma.controlConformite.findMany({
         take: 50,
-        select: { id: true, code: true, nom: true, statut: true, referentiel: true },
+        select: { 
+          id: true, 
+          code: true, 
+          nom: true, 
+          statut: true, 
+          referentiel: true 
+        },
       }),
     ]);
 
@@ -89,7 +102,6 @@ export async function GET(request: NextRequest) {
     if (format === 'pdf') return await exportPDF(data);
 
     return NextResponse.json(data);
-
   } catch (error) {
     console.error('Erreur API Export:', error);
     const message = error instanceof Error ? error.message : 'Erreur inconnue';
@@ -97,10 +109,9 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ================== RECOMMANDATIONS AUTOMATIQUES ==================
+// ================== FONCTIONS UTILITAIRES ==================
 function generateRecommendations(vulnerabilities: Vulnerabilite[], controles: Controle[]) {
   const recs: Recommandation[] = [];
-
   const criticalVulns = vulnerabilities.filter(v => 
     v.severite === 'CRITIQUE' || (v.scoreCVSS && v.scoreCVSS >= 9.0)
   );
@@ -109,8 +120,8 @@ function generateRecommendations(vulnerabilities: Vulnerabilite[], controles: Co
     recs.push({
       priorite: "HAUTE",
       titre: `Corriger les ${criticalVulns.length} vulnérabilités critiques`,
-      description: "Ces vulnérabilités peuvent être exploitées à distance et sans authentification.",
-      action: "Appliquer les patches immédiatement + analyse approfondie des actifs concernés.",
+      description: "Ces vulnérabilités peuvent être exploitées à distance.",
+      action: "Appliquer les patches immédiatement + analyse approfondie.",
       delai: "Sous 48 heures"
     });
   }
@@ -121,7 +132,7 @@ function generateRecommendations(vulnerabilities: Vulnerabilite[], controles: Co
       priorite: "MOYENNE",
       titre: "Améliorer le taux de conformité",
       description: `${nonConformes.length} contrôles ne sont pas conformes.`,
-      action: "Définir un plan de remédiation pour les contrôles ISO27001 / SOC2 / etc.",
+      action: "Définir un plan de remédiation ISO 27001.",
       delai: "Sous 15 jours"
     });
   }
@@ -130,7 +141,7 @@ function generateRecommendations(vulnerabilities: Vulnerabilite[], controles: Co
     priorite: "BASSE",
     titre: "Mettre en place une revue mensuelle",
     description: "Automatiser les scans et générer des rapports périodiques.",
-    action: "Planifier un scan complet tous les 15 jours + revue des logs.",
+    action: "Planifier un scan complet tous les 15 jours.",
     delai: "Ongoing"
   });
 
@@ -156,7 +167,7 @@ function calculateConformite(controles: Controle[]) {
   };
 }
 
-// ================== EXPORTS ==================
+// ================== EXPORTS CORRIGÉS ==================
 function exportExcel(data: ExportData) {
   const wb = XLSX.utils.book_new();
 
@@ -182,7 +193,8 @@ function exportExcel(data: ExportData) {
 
   const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
 
-  return new NextResponse(buffer, {
+  return new NextResponse(buffer as any, {
+    status: 200,
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="rapport-securite-${new Date().toISOString().slice(0,10)}.xlsx"`,
@@ -207,7 +219,7 @@ async function exportPDF(data: ExportData) {
       margin: { top: 40, right: 40, bottom: 40, left: 40 },
     });
 
-    return new NextResponse(pdfBuffer as Buffer, {
+    return new NextResponse(pdfBuffer as any, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
@@ -245,29 +257,19 @@ function generatePDFHTML(data: ExportData) {
         table { width: 100%; border-collapse: collapse; margin: 20px 0; }
         th, td { border: 1px solid #999; padding: 10px; text-align: left; vertical-align: top; }
         th { background-color: #f1f5f9; }
-        .priorite-haute { background-color: #fee2e2; }
       </style>
     </head>
     <body>
       <h1>Rapport de Sécurité</h1>
       <p><strong>Généré le :</strong> ${new Date().toLocaleDateString('fr-FR')}</p>
-
       <h2>Synthèse</h2>
       <p><strong>Total Vulnérabilités :</strong> ${data.metadata.totalVulnerabilites}</p>
       <p><strong>Taux de Conformité :</strong> ${data.statistiques.conformite.tauxConformite}%</p>
-
       <h2>Recommandations Prioritaires</h2>
       <table>
-        <tr>
-          <th>Priorité</th>
-          <th>Titre</th>
-          <th>Description</th>
-          <th>Action Recommandée</th>
-          <th>Délai</th>
-        </tr>
+        <tr><th>Priorité</th><th>Titre</th><th>Description</th><th>Action</th><th>Délai</th></tr>
         ${recsHTML}
       </table>
-
       <h2>Vulnérabilités Récentes</h2>
       <table>
         <tr><th>ID</th><th>Titre</th><th>Sévérité</th><th>Score CVSS</th></tr>

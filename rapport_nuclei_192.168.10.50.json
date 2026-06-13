@@ -1,0 +1,9 @@
+{
+    "status": "success",
+    "scanner": "nuclei",
+    "target": "192.168.10.50",
+    "data": [],
+    "sarif_file": "rapports/nuclei-results.sarif",
+    "raw_stdout": "",
+    "raw_stderr": ""
+}

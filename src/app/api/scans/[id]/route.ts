@@ -1,9 +1,8 @@
-// src/app/api/scans/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { StatutScan } from '@prisma/client';
+import { getServerSession } from 'next-auth/next';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { StatutScan } from '@prisma/client';
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -15,30 +14,19 @@ function getErrorMessage(error: unknown): string {
   return 'Une erreur inattendue est survenue';
 }
 
-const VALID_STATUTS: StatutScan[] = [
-  'PLANIFIE',
-  'EN_COURS',
-  'TERMINE',
-  'ANNULE',
-  'ECHEC',
-];
-
+const VALID_STATUTS: StatutScan[] = ['PLANIFIE', 'EN_COURS', 'TERMINE', 'ANNULE', 'ECHEC'];
 const STATUTS_TERMINAUX: StatutScan[] = ['TERMINE', 'ANNULE', 'ECHEC'];
-
-function isValidStatut(value: unknown): value is StatutScan {
-  return typeof value === 'string' && VALID_STATUTS.includes(value as StatutScan);
-}
 
 // ====================== GET : Détails d'un scan ======================
 export async function GET(req: NextRequest, { params }: Params) {
-  const session = await getServerSession(authOptions);
-  const { id } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
-  }
-
   try {
+    const session = await getServerSession(authOptions);
+    const { id } = await params;
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    }
+
     const scan = await prisma.scan.findUnique({
       where: { id },
       include: {
@@ -69,9 +57,7 @@ export async function GET(req: NextRequest, { params }: Params) {
           orderBy: { severite: 'desc' },
         },
         controlesEvalues: {
-          include: {
-            controle: true,
-          },
+          include: { controle: true },
         },
       },
     });
@@ -89,42 +75,29 @@ export async function GET(req: NextRequest, { params }: Params) {
   } catch (error: unknown) {
     console.error('Erreur GET /api/scans/[id]:', error);
     return NextResponse.json(
-      {
-        error: 'Erreur lors de la récupération du scan',
-        details: getErrorMessage(error),
-      },
-      { status: 500 },
+      { error: 'Erreur lors de la récupération du scan', details: getErrorMessage(error) },
+      { status: 500 }
     );
   }
 }
 
 // ====================== PATCH : Modifier un scan ======================
 export async function PATCH(req: NextRequest, { params }: Params) {
-  const session = await getServerSession(authOptions);
-  const { id } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
-  }
-
   try {
-    const body: unknown = await req.json();
+    const session = await getServerSession(authOptions);
+    const { id } = await params;
 
-    if (!body || typeof body !== 'object' || !('statut' in body)) {
-      return NextResponse.json(
-        { error: "Le champ 'statut' est requis" },
-        { status: 400 },
-      );
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
-    const { statut } = body as { statut: unknown };
+    const body = await req.json();
+    const { statut } = body;
 
-    if (!isValidStatut(statut)) {
+    if (!statut || !VALID_STATUTS.includes(statut)) {
       return NextResponse.json(
-        {
-          error: `Statut invalide. Valeurs acceptées: ${VALID_STATUTS.join(', ')}`,
-        },
-        { status: 400 },
+        { error: `Statut invalide. Valeurs acceptées: ${VALID_STATUTS.join(', ')}` },
+        { status: 400 }
       );
     }
 
@@ -132,7 +105,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       where: { id },
       data: {
         statut,
-        ...(STATUTS_TERMINAUX.includes(statut) && { completedAt: new Date() }),
+        ...(STATUTS_TERMINAUX.includes(statut) && { fin: new Date() }),
       },
       include: {
         actif: { select: { nom: true } },
@@ -147,29 +120,26 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   } catch (error: unknown) {
     console.error('Erreur PATCH /api/scans/[id]:', error);
     return NextResponse.json(
-      {
-        error: 'Erreur lors de la mise à jour du scan',
-        details: getErrorMessage(error),
-      },
-      { status: 500 },
+      { error: 'Erreur lors de la mise à jour du scan', details: getErrorMessage(error) },
+      { status: 500 }
     );
   }
 }
 
-// ====================== DELETE : Annuler/Supprimer un scan ======================
+// ====================== DELETE : Annuler un scan ======================
 export async function DELETE(req: NextRequest, { params }: Params) {
-  const session = await getServerSession(authOptions);
-  const { id } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
-  }
-
   try {
+    const session = await getServerSession(authOptions);
+    const { id } = await params;
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    }
+
     const scan = await prisma.scan.update({
       where: { id },
       data: {
-        statut: 'TERMINE',
+        statut: 'ECHEC',   // ou 'ANNULE' selon ta logique
         fin: new Date(),
       },
     });
@@ -181,8 +151,8 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   } catch (error: unknown) {
     console.error('Erreur DELETE /api/scans/[id]:', error);
     return NextResponse.json(
-      { error: 'Erreur lors de l\'annulation' },
-      { status: 500 },
+      { error: 'Erreur lors de l\'annulation du scan' },
+      { status: 500 }
     );
   }
 }
