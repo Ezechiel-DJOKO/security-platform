@@ -2,9 +2,9 @@ import { scanRepository } from './repository';
 import { prisma } from '@/lib/prisma';
 import { ScanInput, VulnerabiliteInput } from './types';
 import { runNucleiScan } from '@/lib/scanner/nuclei';
-import { OutilScan } from '@prisma/client';
 
 // ── Interfaces pour les résultats Nuclei ─────────────────────────────
+
 interface NucleiResult {
   success: boolean;
   results: NucleiVulnerability[];
@@ -20,80 +20,66 @@ interface NucleiVulnerability {
   remediation?: string;
 }
 
+// ── Type local pour la sévérité (si Prisma enum pas exporté) ───────
+
 type SeverityLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 
 // ── Service ─────────────────────────────────────────────────────────
+
 export const scanService = {
   async lancerScan(input: ScanInput) {
-    // 1. Enregistrer le scan (EN ATTENTE)
     const scan = await scanRepository.createScan({
       idActif: input.idActif,
       lancerPar: input.userId,
       type: input.type,
       outil: input.outil,
-      statut: 'PLANIFIE',
-      cible: input.cible,
+      statut: 'EN_COURS',
       debut: new Date(),
       metadata: { cible: input.cible },
     });
 
-    console.log(`📋 Scan ENREGISTRÉ (PLANIFIE) → ID: ${scan.id}`);
+    console.log(`🔄 Scan lancé (ID: ${scan.id})`);
 
-    // 2. Passage en EN_COURS
-    await prisma.scan.update({
-      where: { id: scan.id },
-      data: { statut: 'EN_COURS' }
-    });
+    if (input.outil === 'NUCLEI' && input.cible) {
+      const nucleiResult: NucleiResult = await runNucleiScan(input.cible);
 
-    let result: any = { success: false };
-
-    try {
-      // Appel scanner (temporairement Nuclei)
-      result = await runNucleiScan(input.cible!);
-
-      // Enregistrer les vulnérabilités
-      if (result.success && result.results?.length) {
-        const vulnerabilites: VulnerabiliteInput[] = result.results.map((r: any) => ({
+      if (nucleiResult.success) {
+        const vulnerabilites: VulnerabiliteInput[] = nucleiResult.results.map((r) => ({
           titre: r.name || r.template || 'Vulnérabilité détectée',
           description: r.description || '',
           severite: mapSeverity(r.severity),
           scoreCVSS: r.cvss_score ?? undefined,
           cveId: r.cve_id ?? undefined,
           recommandation: r.remediation || '',
-          statut: 'OUVERTE',
         }));
 
         await scanRepository.createVulnerabilites(scan.id, vulnerabilites);
-        console.log(`✅ ${vulnerabilites.length} vulnérabilités enregistrées`);
+
+        await prisma.scan.update({
+          where: { id: scan.id },
+          data: {
+            statut: 'TERMINE',
+            fin: new Date(),
+            duree: 60,
+          },
+        });
       }
-    } catch (error) {
-      console.error("Erreur pendant le scan:", error);
     }
 
-    // 3. Finaliser le scan
-    const finalStatus = result.success ? 'TERMINE' : 'ECHEC';
-
-    await prisma.scan.update({
-      where: { id: scan.id },
-      data: {
-        statut: finalStatus,
-        fin: new Date(),
-        duree: Math.floor((Date.now() - scan.debut!.getTime()) / 1000),
-      }
-    });
-
-    console.log(`🏁 Scan terminé (${finalStatus}) → ID: ${scan.id}`);
     return scan;
   },
 };
 
-// Utilitaire
+// ── Fonction utilitaire ───────────────────────────────────────────────
+
+const SEVERITY_MAP: Record<string, SeverityLevel> = {
+  critical: 'CRITICAL',
+  high: 'HIGH',
+  medium: 'MEDIUM',
+  low: 'LOW',
+};
+
 function mapSeverity(severity: string | undefined): SeverityLevel {
-  const map: Record<string, SeverityLevel> = {
-    critical: 'CRITICAL',
-    high: 'HIGH',
-    medium: 'MEDIUM',
-    low: 'LOW',
-  };
-  return map[severity?.toLowerCase() || ''] ?? 'MEDIUM';
+  if (!severity) return 'MEDIUM';
+  return SEVERITY_MAP[severity.toLowerCase()] ?? 'MEDIUM';
 }

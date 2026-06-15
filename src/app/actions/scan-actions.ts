@@ -5,10 +5,10 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { OutilScan, StatutScan } from '@prisma/client';
-import { triggerScanBackground } from '@/lib/scan';   // ← Import correct
+import { triggerScanBackground } from '@/lib/scan';
 
 /**
- * ACTION 1 : Déclencher un scan manuellement
+ * ACTION : Lancer un scan (respect du diagramme)
  */
 export async function lancerScanAction(idActif: string, outil: OutilScan) {
   try {
@@ -17,13 +17,12 @@ export async function lancerScanAction(idActif: string, outil: OutilScan) {
       return { success: false, error: "Non autorisé : Veuillez vous connecter." };
     }
 
-    const actif = await prisma.actif.findUnique({ 
-      where: { id: idActif } 
-    });
+    const actif = await prisma.actif.findUnique({ where: { id: idActif } });
     if (!actif) {
       return { success: false, error: "Actif introuvable." };
     }
 
+    // 1. Création du scan (EN ATTENTE / PLANIFIE) → Correspond au diagramme
     const scan = await prisma.scan.create({
       data: {
         idActif,
@@ -31,16 +30,25 @@ export async function lancerScanAction(idActif: string, outil: OutilScan) {
         type: "VULNERABILITE",
         outil,
         statut: StatutScan.PLANIFIE,
+        cible: actif.adresseIP || actif.hostname || "cible-inconnue",
       },
     });
 
-    // Appel non bloquant du scan en arrière-plan (comme dans le diagramme de séquence)
+    console.log(`📋 Scan créé (PLANIFIE) → ID: ${scan.id}`);
+
+    // 2. Lancement en arrière-plan (Démarrer le scan)
     triggerScanBackground(scan.id).catch(err => {
-      console.error("[BACKGROUND ERROR]", err);
+      console.error("[BACKGROUND SCAN ERROR]", err);
     });
 
     revalidatePath('/scans');
-    return { success: true, scanId: scan.id };
+    revalidatePath('/(auditeur)/scans');
+
+    return { 
+      success: true, 
+      scanId: scan.id,
+      message: "Scan lancé avec succès" 
+    };
 
   } catch (error: unknown) {
     console.error("Erreur dans lancerScanAction:", error);
@@ -50,22 +58,13 @@ export async function lancerScanAction(idActif: string, outil: OutilScan) {
 }
 
 /**
- * ACTION 2 : Annuler un scan en cours ou planifié
+ * ACTION : Annuler un scan
  */
 export async function annulerScanAction(scanId: string) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return { success: false, error: "Non autorisé." };
-    }
-
-    const scan = await prisma.scan.findUnique({ where: { id: scanId } });
-    if (!scan) {
-      return { success: false, error: "Scan introuvable." };
-    }
-
-    if (scan.statut === StatutScan.TERMINE || scan.statut === StatutScan.ECHEC) {
-      return { success: false, error: "Impossible d'annuler un scan déjà terminé." };
     }
 
     const scanMisAJour = await prisma.scan.update({
@@ -79,7 +78,6 @@ export async function annulerScanAction(scanId: string) {
 
     revalidatePath('/scans');
     return { success: true, scanId: scanMisAJour.id };
-
   } catch (error: unknown) {
     console.error("Erreur dans annulerScanAction:", error);
     const message = error instanceof Error ? error.message : 'Erreur inconnue';

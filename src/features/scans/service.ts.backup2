@@ -2,7 +2,6 @@ import { scanRepository } from './repository';
 import { prisma } from '@/lib/prisma';
 import { ScanInput, VulnerabiliteInput } from './types';
 import { runNucleiScan } from '@/lib/scanner/nuclei';
-import { OutilScan } from '@prisma/client';
 
 // ── Interfaces pour les résultats Nuclei ─────────────────────────────
 interface NucleiResult {
@@ -20,38 +19,46 @@ interface NucleiVulnerability {
   remediation?: string;
 }
 
+// ── Type local pour la sévérité ───────
 type SeverityLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 
-// ── Service ─────────────────────────────────────────────────────────
+// ── Service mis à jour pour respecter le diagramme ─────────────────────────────────
 export const scanService = {
   async lancerScan(input: ScanInput) {
-    // 1. Enregistrer le scan (EN ATTENTE)
+    // === 1. Enregistrer le scan (EN ATTENTE) ===
     const scan = await scanRepository.createScan({
       idActif: input.idActif,
       lancerPar: input.userId,
       type: input.type,
-      outil: input.outil,
-      statut: 'PLANIFIE',
+      outil: input.outil || 'OPEN_VAS',
+      statut: 'PLANIFIE',                    // ← Correspond à "EN ATTENTE" du diagramme
       cible: input.cible,
       debut: new Date(),
       metadata: { cible: input.cible },
     });
 
-    console.log(`📋 Scan ENREGISTRÉ (PLANIFIE) → ID: ${scan.id}`);
+    console.log(`📋 Scan ENREGISTRÉ (PLANIFIE / EN ATTENTE) → ID: ${scan.id}`);
 
-    // 2. Passage en EN_COURS
+    // === 2. Démarrer le scan (passage en EN_COURS) ===
     await prisma.scan.update({
       where: { id: scan.id },
       data: { statut: 'EN_COURS' }
     });
 
-    let result: any = { success: false };
+    console.log(`🚀 Scan démarré (EN_COURS) → ID: ${scan.id}`);
+
+    let result: any = { success: false, vulnerabilites: [] };
 
     try {
-      // Appel scanner (temporairement Nuclei)
-      result = await runNucleiScan(input.cible!);
+      // Appel au scanner (OpenVAS prioritaire comme dans ton diagramme)
+      if (input.outil === 'OPEN_VAS' || !input.outil) {
+        // result = await runOpenVASScan(input.cible, scan.id);  // À activer plus tard
+        result = await runNucleiScan(input.cible); // Temporaire
+      } else if (input.outil === 'NUCLEI') {
+        result = await runNucleiScan(input.cible);
+      }
 
-      // Enregistrer les vulnérabilités
+      // === 3. Résultats des failles détectées + Enregistrer vulnérabilités ===
       if (result.success && result.results?.length) {
         const vulnerabilites: VulnerabiliteInput[] = result.results.map((r: any) => ({
           titre: r.name || r.template || 'Vulnérabilité détectée',
@@ -60,17 +67,19 @@ export const scanService = {
           scoreCVSS: r.cvss_score ?? undefined,
           cveId: r.cve_id ?? undefined,
           recommandation: r.remediation || '',
-          statut: 'OUVERTE',
+          statut: 'OUVERTE',                    // ← Diagramme : Vulnérabilité enregistrée (OUVERTE)
         }));
 
         await scanRepository.createVulnerabilites(scan.id, vulnerabilites);
-        console.log(`✅ ${vulnerabilites.length} vulnérabilités enregistrées`);
+
+        console.log(`✅ ${vulnerabilites.length} vulnérabilités enregistrées (OUVERTE)`);
       }
+
     } catch (error) {
-      console.error("Erreur pendant le scan:", error);
+      console.error("❌ Erreur pendant le scan:", error);
     }
 
-    // 3. Finaliser le scan
+    // === 4. Scan terminé ===
     const finalStatus = result.success ? 'TERMINE' : 'ECHEC';
 
     await prisma.scan.update({
@@ -83,17 +92,20 @@ export const scanService = {
     });
 
     console.log(`🏁 Scan terminé (${finalStatus}) → ID: ${scan.id}`);
+
     return scan;
   },
 };
 
-// Utilitaire
+// ── Fonction utilitaire ───────────────────────────────────────────────
+const SEVERITY_MAP: Record<string, SeverityLevel> = {
+  critical: 'CRITICAL',
+  high: 'HIGH',
+  medium: 'MEDIUM',
+  low: 'LOW',
+};
+
 function mapSeverity(severity: string | undefined): SeverityLevel {
-  const map: Record<string, SeverityLevel> = {
-    critical: 'CRITICAL',
-    high: 'HIGH',
-    medium: 'MEDIUM',
-    low: 'LOW',
-  };
-  return map[severity?.toLowerCase() || ''] ?? 'MEDIUM';
+  if (!severity) return 'MEDIUM';
+  return SEVERITY_MAP[severity.toLowerCase()] ?? 'MEDIUM';
 }
