@@ -1,6 +1,7 @@
 "use client";
+
 import { signIn } from "next-auth/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Shield, Eye, EyeOff, Lock, Mail, ArrowRight, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
@@ -10,22 +11,30 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+    const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
 
     try {
+      // Désactivation de la redirection automatique pour capturer l'erreur localement
       const result = await signIn("credentials", {
         email,
         password,
-        redirect: true,
-        callbackUrl: "/dashboard",
+        redirect: false, // Modification ici
       });
 
       if (result?.error) {
         setError("Identifiants incorrects. Veuillez réessayer.");
+      } else if (result?.ok) {
+        // Redirection manuelle propre uniquement si la connexion réussit
+        window.location.href = "/dashboard";
       }
     } catch {
       setError("Une erreur est survenue. Veuillez réessayer.");
@@ -33,6 +42,9 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+
+  const isDisabled = mounted ? isLoading || !email || !password : true;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4 relative overflow-hidden">
@@ -58,7 +70,6 @@ export default function LoginPage() {
           {/* Header with gradient */}
           <div className="relative bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 px-8 pt-10 pb-16">
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNSkiLz48L3N2Zz4=')] opacity-30" />
-            
             <div className="relative flex flex-col items-center text-center">
               <div className="w-16 h-16 bg-white/5 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-4 border border-white/10 shadow-lg">
                 <Shield className="w-8 h-8 text-blue-400" />
@@ -160,7 +171,6 @@ export default function LoginPage() {
               {/* Submit button */}
               <button
                 type="submit"
-                disabled={isLoading || !email || !password}
                 className="w-full group relative py-3.5 px-4 bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 hover:from-blue-600 hover:via-indigo-600 hover:to-blue-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-900/20 hover:shadow-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-200 overflow-hidden"
               >
                 <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />

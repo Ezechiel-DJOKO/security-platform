@@ -24,6 +24,7 @@ model Utilisateur {
   scansLancees             Scan[]                    @relation("ScanLancePar")
   vulnerabilitesAssignees  Vulnerabilite[]           @relation("VulnAssigneA")
 
+  
   @@map("utilisateur")
 }
 
