@@ -1,0 +1,54 @@
+{
+    "status": "success",
+    "scanner": "nuclei",
+    "target": "testphp.vulnweb.com",
+    "data": [
+        {
+            "id": "5b7756ff-adf1-4b95-a4ab-c9033ae2dacd",
+            "cveId": "CVE-2024-23897",
+            "titre": "Remote Code Execution via Log4Shell variant",
+            "description": "Vulnérabilité critique détectée sur testphp.vulnweb.com",
+            "severite": "CRITICAL",
+            "scoreCVSS": 9.8,
+            "statut": "OUVERTE"
+        },
+        {
+            "id": "e90399e0-91a7-4ce2-8e5d-4d81f123021c",
+            "cveId": "CVE-2024-5678",
+            "titre": "Reflected Cross-Site Scripting (XSS)",
+            "description": "Paramètre utilisateur non sanitizé permettant l'exécution de scripts",
+            "severite": "HIGH",
+            "scoreCVSS": 8.6,
+            "statut": "OUVERTE"
+        },
+        {
+            "id": "fcc28deb-3771-45ab-991f-1c48ff40f007",
+            "cveId": "CVE-2024-12345",
+            "titre": "SQL Injection dans formulaire d'authentification",
+            "description": "Possibilité d'extraire ou modifier des données sensibles",
+            "severite": "CRITICAL",
+            "scoreCVSS": 9.1,
+            "statut": "OUVERTE"
+        },
+        {
+            "id": "be89bb1b-0ed9-4224-bf03-b405f4505565",
+            "cveId": "CVE-2024-9876",
+            "titre": "Directory Traversal / Path Traversal",
+            "description": "Accès non autorisé aux fichiers système",
+            "severite": "HIGH",
+            "scoreCVSS": 7.5,
+            "statut": "OUVERTE"
+        },
+        {
+            "id": "c8d7b739-e6e2-404c-8f30-c946c128aa12",
+            "cveId": "CVE-2024-1111",
+            "titre": "Configuration SSL/TLS faible",
+            "description": "Utilisation de protocoles obsolètes (TLS 1.0/1.1)",
+            "severite": "MEDIUM",
+            "scoreCVSS": 6.8,
+            "statut": "OUVERTE"
+        }
+    ],
+    "raw_stdout": "",
+    "demo_mode": true
+}

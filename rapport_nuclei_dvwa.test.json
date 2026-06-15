@@ -1,0 +1,9 @@
+{
+    "status": "success",
+    "scanner": "nuclei",
+    "target": "dvwa.test",
+    "data": [],
+    "sarif_file": "rapports/nuclei-results.sarif",
+    "raw_stdout": "",
+    "raw_stderr": ""
+}

@@ -1,0 +1,54 @@
+{
+    "status": "success",
+    "scanner": "nuclei",
+    "target": "192.168.10.45",
+    "data": [
+        {
+            "id": "4b2cd537-694c-459d-b478-3b2fa48e09a6",
+            "cveId": "CVE-2024-23897",
+            "titre": "Remote Code Execution via Log4Shell variant",
+            "description": "Vulnérabilité critique détectée sur 192.168.10.45",
+            "severite": "CRITICAL",
+            "scoreCVSS": 9.8,
+            "statut": "OUVERTE"
+        },
+        {
+            "id": "1f71ec1a-06eb-432d-8096-b755e9f76a7f",
+            "cveId": "CVE-2024-5678",
+            "titre": "Reflected Cross-Site Scripting (XSS)",
+            "description": "Paramètre utilisateur non sanitizé permettant l'exécution de scripts",
+            "severite": "HIGH",
+            "scoreCVSS": 8.6,
+            "statut": "OUVERTE"
+        },
+        {
+            "id": "07434613-1edf-4394-aa35-dbe1f0fcdf51",
+            "cveId": "CVE-2024-12345",
+            "titre": "SQL Injection dans formulaire d'authentification",
+            "description": "Possibilité d'extraire ou modifier des données sensibles",
+            "severite": "CRITICAL",
+            "scoreCVSS": 9.1,
+            "statut": "OUVERTE"
+        },
+        {
+            "id": "2d7184b8-6bac-42b9-b3f1-9db435064f0e",
+            "cveId": "CVE-2024-9876",
+            "titre": "Directory Traversal / Path Traversal",
+            "description": "Accès non autorisé aux fichiers système",
+            "severite": "HIGH",
+            "scoreCVSS": 7.5,
+            "statut": "OUVERTE"
+        },
+        {
+            "id": "79d81542-9d6a-4239-8bfe-60839220d6f4",
+            "cveId": "CVE-2024-1111",
+            "titre": "Configuration SSL/TLS faible",
+            "description": "Utilisation de protocoles obsolètes (TLS 1.0/1.1)",
+            "severite": "MEDIUM",
+            "scoreCVSS": 6.8,
+            "statut": "OUVERTE"
+        }
+    ],
+    "raw_stdout": "",
+    "demo_mode": true
+}
