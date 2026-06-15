@@ -4,6 +4,10 @@ import { promisify } from 'util';
 import path from 'path';
 import { StatutScan } from '@prisma/client';
 
+import { importResultsToPrisma } from './importResultsService';
+import { createCorrectionPlans } from './planCorrectionService';
+import { sendAlerts } from './alertService';
+
 const execAsync = promisify(exec);
 
 interface ScanResult {
@@ -12,17 +16,18 @@ interface ScanResult {
   target?: string;
   data?: any[];
   error?: string;
+  [key: string]: any;
 }
 
 /**
- * Fonction principale appelée par le diagramme de séquence
- * Lance le scan en arrière-plan et met à jour le statut + résultats
+ * Fonction principale de lancement du scan (arrière-plan)
+ * Respecte le diagramme de séquence Flux 1
  */
 export async function triggerScanBackground(scanId: string): Promise<void> {
   console.log(`[SCAN START] Début du scan ${scanId}`);
 
   try {
-    // 1. Récupérer les infos du scan et de l'actif
+    // 1. Récupérer les infos du scan
     const scan = await prisma.scan.findUnique({
       where: { id: scanId },
       include: { actif: true }
@@ -32,22 +37,24 @@ export async function triggerScanBackground(scanId: string): Promise<void> {
       throw new Error(`Scan ou actif introuvable pour l'ID ${scanId}`);
     }
 
-    const target = scan.actif.adresseIP || scan.actif.hostname;
-    if (!target) throw new Error("Aucune cible (IP/Hostname) trouvée pour cet actif");
+    const target = scan.cible || scan.actif.adresseIP || scan.actif.hostname;
+    if (!target) throw new Error("Aucune cible définie pour cet actif");
 
-    // 2. Mise à jour statut → EN_COURS
+    // 2. Mise à jour → EN_COURS (comme dans le diagramme)
     await prisma.scan.update({
       where: { id: scanId },
-      data: { statut: StatutScan.EN_COURS, debut: new Date() },
+      data: { 
+        statut: StatutScan.EN_COURS, 
+        debut: new Date() 
+      },
     });
 
     const scriptPath = path.join(process.cwd(), 'python-scanner', 'scan.py');
+    const command = `python3 ${scriptPath} ${scan.outil.toLowerCase()} ${target} ${scanId}`;
 
-    // 3. Lancer le scanner Python
-    const command = `python3 ${scriptPath} ${scan.outil.toLowerCase()} ${target}`;
     console.log(`[SCAN] Exécution : ${command}`);
 
-    const { stdout, stderr } = await execAsync(command);
+    const { stdout, stderr } = await execAsync(command, { timeout: 600000 }); // 10 minutes max
 
     if (stderr) console.warn("[Python stderr]:", stderr);
 
@@ -58,23 +65,29 @@ export async function triggerScanBackground(scanId: string): Promise<void> {
       result = { status: "error", error: "Sortie Python invalide" };
     }
 
-    // 4. Mise à jour finale du scan
-    const statutFinal = result.status === "success" ? StatutScan.TERMINE : StatutScan.ECHEC;
+    // 3. Import des résultats + Post-traitement complet (Diagramme)
+    if (result.status === "success") {
+      await importResultsToPrisma(scanId, result);
+      await createCorrectionPlans(scanId);
+      await sendAlerts(scanId);
 
-    await prisma.scan.update({
-      where: { id: scanId },
-      data: {
-        statut: statutFinal,
-        fin: new Date(),
-        resultatBrut: stdout,
-        metadata: result as any,
-      },
-    });
+      // Mise à jour finale
+      await prisma.scan.update({
+        where: { id: scanId },
+        data: {
+          statut: StatutScan.TERMINE,
+          fin: new Date(),
+          resultatBrut: result as any,
+        },
+      });
 
-    console.log(`[SCAN SUCCESS] Scan ${scanId} terminé avec statut ${statutFinal}`);
+      console.log(`✅ [SCAN SUCCESS] Scan ${scanId} terminé avec succès`);
+    } else {
+      throw new Error(result.error || "Scan échoué");
+    }
 
   } catch (error: any) {
-    console.error(`[SCAN ERROR] Scan ${scanId}:`, error.message);
+    console.error(`❌ [SCAN ERROR] Scan ${scanId}:`, error.message);
 
     await prisma.scan.update({
       where: { id: scanId },

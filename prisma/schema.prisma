@@ -7,41 +7,42 @@ datasource db {
 }
 
 model Utilisateur {
-  id                       String                    @id @default(uuid()) @db.Uuid
-  nom                      String
-  prenom                   String
-  email                    String                    @unique
-  motDePasseHashe          String
-  role                     RoleUtilisateur
-  actif                    Boolean                   @default(true)
-  deletedAt                DateTime?
-  createdAt                DateTime                  @default(now())
-  updatedAt                DateTime                  @updatedAt
-  auditLogs                AuditLog[]                @relation("AuditUtilisateur")
-  historiquesVulnerabilite HistoriqueVulnerabilite[] @relation("HistoriqueModifiePar")
-  plansAssignes            PlanCorrection[]          @relation("PlanAssigneA")
-  rapportsGenere           RapportAudit[]            @relation("RapportGenerePar")
-  scansLancees             Scan[]                    @relation("ScanLancePar")
-  vulnerabilitesAssignees  Vulnerabilite[]           @relation("VulnAssigneA")
+  id                String   @id @default(uuid()) @db.Uuid
+  nom               String
+  prenom            String
+  email             String   @unique
+  motDePasseHashe   String
+  role              RoleUtilisateur
+  actif             Boolean  @default(true)
+  deletedAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  
+  auditLogs         AuditLog[]         @relation("AuditUtilisateur")
+  historiquesVulnerabilite HistoriqueVulnerabilite[] @relation("HistoriqueModifiePar")
+  plansAssignes     PlanCorrection[]   @relation("PlanAssigneA")
+  rapportsGenere    RapportAudit[]     @relation("RapportGenerePar")
+  scansLancees      Scan[]             @relation("ScanLancePar")
+  vulnerabilitesAssignees Vulnerabilite[] @relation("VulnAssigneA")
+
   @@map("utilisateur")
 }
 
 model Actif {
-  id           String          @id @default(uuid()) @db.Uuid
-  nom          String
-  adresseIP    String?
-  hostname     String?
-  type         TypeActif
-  criticite    NiveauCriticite
-  localisation String?
-  dernierScan  DateTime?
-  deletedAt    DateTime?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  rapports     RapportAudit[]  @relation("RapportActif")
-  scans        Scan[]          @relation("ScanSurActif")
+  id            String   @id @default(uuid()) @db.Uuid
+  nom           String
+  adresseIP     String?
+  hostname      String?
+  type          TypeActif
+  criticite     NiveauCriticite
+  localisation  String?
+  dernierScan   DateTime?
+  deletedAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  rapports      RapportAudit[] @relation("RapportActif")
+  scans         Scan[]         @relation("ScanSurActif")
 
   @@index([adresseIP])
   @@index([criticite])
@@ -49,58 +50,59 @@ model Actif {
 }
 
 model Scan {
-  id               String          @id @default(uuid()) @db.Uuid
-  idActif          String          @db.Uuid
-  lancerPar        String          @db.Uuid
-  type             TypeScan
-  outil            OutilScan
-  statut           StatutScan      @default(PLANIFIE)
-  debut            DateTime?
-  fin              DateTime?
-  duree            Int?
-  resultatBrut     Json?
-  metadata         Json?
-  erreur           String?
-  cible            String?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  controlesEvalues ControlScan[]   @relation("ScanControles")
-  actif            Actif           @relation("ScanSurActif", fields: [idActif], references: [id], onDelete: Cascade)
-  utilisateur      Utilisateur     @relation("ScanLancePar", fields: [lancerPar], references: [id])
-  vulnerabilites   Vulnerabilite[] @relation("DetecteeParScan")
+  id            String         @id @default(uuid()) @db.Uuid
+  idActif       String         @db.Uuid
+  lancerPar     String         @db.Uuid
+  type          TypeScan
+  outil         OutilScan
+  statut        StatutScan     @default(PLANIFIE)
+  debut         DateTime?
+  fin           DateTime?
+  duree         Int?
+  resultatBrut  Json?
+  metadata      Json?
+  erreur        String?
+  cible         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  controlesEvalues ControlScan[] @relation("ScanControles")
+  actif         Actif          @relation("ScanSurActif", fields: [idActif], references: [id], onDelete: Cascade)
+  utilisateur   Utilisateur    @relation("ScanLancePar", fields: [lancerPar], references: [id])
+  vulnerabilites Vulnerabilite[] @relation("DetecteeParScan")
 
   @@map("scans")
 }
 
 model Vulnerabilite {
-  id              String                    @id @default(uuid()) @db.Uuid
-  idScan          String                    @db.Uuid
-  cveId           String?
-  titre           String
-  description     String?
-  severite        Severite
-  scoreCVSS       Float?
-  cvssVersion     String?
-  epssScore       Float?
-  vecteurCVSS     String?
-  statut          StatutVulnerabilite       @default(OUVERTE)
-  assigneA        String?                   @db.Uuid
-  preuve          String?
-  impact          String?
-  recommandation  String?
-  risqueRelatif   Float?
-  dateDecouverte  DateTime                  @default(now())
-  dateCorrection  DateTime?
-  createdAt       DateTime                  @default(now())
-  updatedAt       DateTime                  @updatedAt
-  deletedAt       DateTime?
-  tempsResolution Int?
-  historiques     HistoriqueVulnerabilite[] @relation("HistoriqueVulnerabilite")
-  plan            PlanCorrection?
-  tags            TagVulnerabilite[]
-  controles       VulnerabiliteControl[]
-  assigne         Utilisateur?              @relation("VulnAssigneA", fields: [assigneA], references: [id])
-  scan            Scan                      @relation("DetecteeParScan", fields: [idScan], references: [id], onDelete: Cascade)
+  id               String   @id @default(uuid()) @db.Uuid
+  idScan           String   @db.Uuid
+  cveId            String?
+  titre            String
+  description      String?
+  severite         Severite
+  scoreCVSS        Float?
+  cvssVersion      String?
+  epssScore        Float?
+  vecteurCVSS      String?
+  statut           StatutVulnerabilite @default(OUVERTE)
+  assigneA         String?  @db.Uuid
+  preuve           String?
+  impact           String?
+  recommandation   String?
+  risqueRelatif    Float?
+  dateDecouverte   DateTime @default(now())
+  dateCorrection   DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
+
+  historiques      HistoriqueVulnerabilite[] @relation("HistoriqueVulnerabilite")
+  plan             PlanCorrection?
+  tags             TagVulnerabilite[]
+  controles        VulnerabiliteControl[]
+  assigne          Utilisateur? @relation("VulnAssigneA", fields: [assigneA], references: [id])
+  scan             Scan         @relation("DetecteeParScan", fields: [idScan], references: [id], onDelete: Cascade)
 
   @@map("vulnerabilites")
 }

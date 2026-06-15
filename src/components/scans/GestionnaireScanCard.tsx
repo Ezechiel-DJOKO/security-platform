@@ -1,7 +1,7 @@
 'use client';
 import { useTransition, useState, useEffect } from 'react';
-import { lancerScanAction, annulerScanAction } from '@/app/actions/scan-actions';
-import { OutilScan, StatutScan } from '@prisma/client';
+import { lancerScanAction } from '@/app/actions/scan-actions';
+import { OutilScan } from '@prisma/client';
 
 interface GestionnaireScanCardProps {
   idActif: string;

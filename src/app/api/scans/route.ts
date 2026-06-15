@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
-import { StatutScan } from '@prisma/client';
+import { StatutScan, TypeScan, OutilScan } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,7 +16,6 @@ export async function GET(request: NextRequest) {
     const actifId = searchParams.get('actifId');
 
     const where: any = {};
-
     if (statut) where.statut = statut;
     if (actifId) where.idActif = actifId;
 
@@ -33,21 +32,74 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json({ 
-      success: true, 
-      data: scans 
+    return NextResponse.json({
+      success: true,
+      data: scans
     });
-
   } catch (error: any) {
     console.error("Erreur GET scans:", error);
-    return NextResponse.json({ 
-      error: "Erreur lors de la récupération des scans" 
+    return NextResponse.json({
+      error: "Erreur lors de la récupération des scans"
     }, { status: 500 });
   }
 }
 
-// Si tu as d'autres méthodes (POST, etc.), elles restent inchangées
+/**
+ * POST /api/scans
+ * Crée un nouveau scan en statut PLANIFIE (EN ATTENTE)
+ * Correspond à l'étape "Enregistrer le scan (EN ATTENTE)" du diagramme
+ */
 export async function POST(request: NextRequest) {
-  // Ton code POST existant si tu en as un...
-  return NextResponse.json({ error: "Méthode non implémentée ici" }, { status: 405 });
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { idActif, type, outil, cible } = body;
+
+    // Validation minimale
+    if (!idActif || !type || !outil || !cible) {
+      return NextResponse.json({ 
+        error: "Les champs idActif, type, outil et cible sont obligatoires" 
+      }, { status: 400 });
+    }
+
+    const scan = await prisma.scan.create({
+      data: {
+        idActif,
+        lancerPar: session.user.id,
+        type: type as TypeScan,
+        outil: outil as OutilScan,
+        statut: StatutScan.PLANIFIE,        // ← Important : EN ATTENTE selon diagramme
+        cible,
+        debut: null,
+        fin: null,
+        resultatBrut: null as any,
+        metadata: {
+          createdBy: session.user.email,
+          source: "interface_utilisateur"
+        }
+      },
+      include: {
+        actif: true,
+        utilisateur: {
+          select: { nom: true, prenom: true, email: true }
+        }
+      }
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "Scan enregistré avec succès (EN ATTENTE)",
+      data: scan
+    }, { status: 201 });
+
+  } catch (error: any) {
+    console.error("Erreur POST scans:", error);
+    return NextResponse.json({
+      error: "Erreur lors de la création du scan"
+    }, { status: 500 });
+  }
 }

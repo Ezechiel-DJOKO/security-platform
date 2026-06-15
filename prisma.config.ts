@@ -1,4 +1,3 @@
-// prisma.config.ts
 import "dotenv/config";
 import { defineConfig, env } from "@prisma/config";
 
@@ -11,5 +10,8 @@ export default defineConfig({
 
   migrations: {
     path: "prisma/migrations",
+    // On utilise ./seed.ts car le fichier est à la racine
+    // Et npx ts-node pour s'assurer que l'exécuteur est trouvé
+    seed: "npx ts-node ./seed.ts", 
   },
 });
