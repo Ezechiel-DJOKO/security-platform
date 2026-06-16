@@ -1,9 +1,11 @@
 'use server';
+
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { OutilScan, StatutScan } from '@prisma/client';
+import { triggerScanBackground } from '@/lib/scan';
 
 export async function lancerScanAction(idActif: string, outil: OutilScan) {
   try {
@@ -12,12 +14,15 @@ export async function lancerScanAction(idActif: string, outil: OutilScan) {
       return { success: false, error: "Non autorisé : Veuillez vous connecter." };
     }
 
-    const actif = await prisma.actif.findUnique({ where: { id: idActif } });
+    const actif = await prisma.actif.findUnique({ 
+      where: { id: idActif } 
+    });
+
     if (!actif) {
       return { success: false, error: "Actif introuvable." };
     }
 
-    // 1. Création du scan (EN ATTENTE) → Diagramme
+    // 1. Création du scan (PLANIFIE) → conforme au diagramme
     const scan = await prisma.scan.create({
       data: {
         idActif,
@@ -31,17 +36,14 @@ export async function lancerScanAction(idActif: string, outil: OutilScan) {
 
     console.log(`📋 Scan créé (PLANIFIE) → ID: ${scan.id}`);
 
-    // 2. Lancement via le nouvel endpoint (recommandé)
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/scans/${scan.id}/launch`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    // 2. Lancement DIRECT en arrière-plan (solution recommandée)
+    // Cela évite le problème de 401 avec le fetch
+    triggerScanBackground(scan.id).catch(err => {
+      console.error(`❌ Erreur background scan ${scan.id}:`, err);
     });
 
-    if (!response.ok) {
-      throw new Error(`Erreur lors du lancement: ${response.status}`);
-    }
-
     revalidatePath('/scans');
+    revalidatePath('/(dashboard)/scans');
     revalidatePath('/(auditeur)/scans');
 
     return {

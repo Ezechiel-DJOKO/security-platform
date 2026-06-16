@@ -9,11 +9,14 @@ interface AlertPayload {
   userId?: string;
 }
 
+/**
+ * Fonction principale d'envoi d'alerte
+ */
 export async function sendAlert(payload: AlertPayload) {
   console.log(`🔔 Envoi d'alerte : ${payload.message}`);
 
   try {
-    // Enregistrer l'alerte en base (tu peux créer un model Alert plus tard)
+    // Enregistrer dans l'audit log
     await prisma.auditLog.create({
       data: {
         idUtilisateur: payload.userId,
@@ -28,14 +31,9 @@ export async function sendAlert(payload: AlertPayload) {
       }
     });
 
-    // Ici tu peux ajouter :
-    // - Envoi d'email (Resend, Nodemailer...)
-    // - Notification WebSocket / Push
-    // - Slack / Teams webhook
-
     if (payload.severity === 'CRITICAL') {
       console.log(`🚨 ALERTE CRITIQUE : ${payload.message}`);
-      // Ajouter logique de notification urgente ici
+      // TODO: Ajouter plus tard email, Slack, WebSocket, etc.
     }
 
     return { success: true };
@@ -43,4 +41,18 @@ export async function sendAlert(payload: AlertPayload) {
     console.error("Erreur lors de l'envoi d'alerte:", error);
     return { success: false };
   }
+}
+
+/**
+ * Fonction de commodité pour appeler facilement depuis scan.ts
+ * (accepte juste le scanId)
+ */
+export async function sendAlerts(scanId: string): Promise<void> {
+  await sendAlert({
+    scanId,
+    type: 'SCAN_COMPLETED',
+    message: `Scan ${scanId} terminé`,
+    severity: 'INFO',
+    // userId: on peut le récupérer du scan si besoin
+  });
 }

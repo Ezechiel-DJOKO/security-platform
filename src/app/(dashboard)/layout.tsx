@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import Sidebar from '@/components/sidebar';
 import Header from '@/components/header';
 import { RoleGate } from '@/components/RoleGate';
+import AlertListener from '@/components/AlertListener';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
@@ -18,6 +19,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             {children}
           </RoleGate>
         </main>
+        <AlertListener />
       </div>
     </div>
   );

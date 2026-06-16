@@ -1,19 +1,26 @@
-import Pusher from "pusher";
-import { NextResponse } from "next/server";
+// src/app/api/notify/events/route.ts
+import { NextResponse } from 'next/server';
 
-const pusher = new Pusher({
-  appId: process.env.PUSHER_APP_ID!,
-  key: process.env.NEXT_PUBLIC_PUSHER_KEY!,
-  secret: process.env.PUSHER_SECRET!,
-  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-  useTLS: true,
-});
+export async function GET() {
+  const stream = new ReadableStream({
+    start(controller) {
+      // Pour l'instant on simule, plus tard tu pourras broadcaster via Prisma ou Redis
+      const interval = setInterval(() => {
+        controller.enqueue(`data: ${JSON.stringify({
+          type: 'SCAN_COMPLETED',
+          message: 'Un scan vient de se terminer avec des vulnérabilités critiques.'
+        })}\n\n`);
+      }, 15000); // simulation toutes les 15s
 
-export async function POST(request: Request) {
-  const { message } = await request.json();
+      return () => clearInterval(interval);
+    }
+  });
 
-  // Envoie flash à Pusher puis libère immédiatement la fonction serverless
-  await pusher.trigger("alertes", "nouveau-message", { message });
-
-  return NextResponse.json({ success: true });
+  return new NextResponse(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
 }

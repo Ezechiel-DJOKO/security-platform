@@ -1,32 +1,43 @@
-"use client";
-import { useEffect, useState, useEffectEvent } from "react";
-import Pusher from "pusher-js";
+'use client';
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 
 export default function AlertListener() {
-  const [notification, setNotification] = useState<string>("");
-
-  // Next.js 16 / React 19 native event handler extraction
-  const onMessageReceived = useEffectEvent((data: { message: string }) => {
-    setNotification(data.message);
-  });
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
-      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-    });
+    // Option 1 : Server-Sent Events (recommandé pour simplicité)
+    const eventSource = new EventSource('/api/notify/events');
 
-    const channel = pusher.subscribe("alertes");
-    channel.bind("nouveau-message", onMessageReceived);
+    eventSource.onopen = () => {
+      console.log('🟢 AlertListener connecté');
+      setConnected(true);
+    };
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'SCAN_COMPLETED' || data.type === 'CRITICAL_VULN') {
+          toast.success(data.message || 'Scan terminé avec succès !', {
+            duration: 6000,
+            position: 'top-center',
+            icon: '🚨',
+          });
+        }
+      } catch (e) {
+        console.error('Erreur parsing notification:', e);
+      }
+    };
+
+    eventSource.onerror = () => {
+      console.warn('⚠️ Erreur SSE, reconnexion...');
+    };
 
     return () => {
-      channel.unbind_all();
-      channel.unsubscribe();
+      eventSource.close();
     };
-  }, []); // Plus besoin de passer onMessageReceived dans les dépendances grâce à useEffectEvent !
+  }, []);
 
-  return notification ? (
-    <div className="p-4 mb-4 text-sm text-blue-800 rounded-lg bg-blue-50 dark:bg-gray-800 dark:text-blue-400">
-      ⚡ {notification}
-    </div>
-  ) : null;
+  return null; // Ce composant n'affiche rien, il écoute seulement
 }

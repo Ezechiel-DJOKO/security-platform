@@ -1,4 +1,4 @@
-// seed.ts (à la racine)
+// seed.ts
 import "dotenv/config";
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -10,7 +10,6 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 function hashPassword(password: string): string {
-  // Utilisation directe du module importé 'crypto'
   return crypto.createHash('sha256').update(password).digest('hex');
 }
 
@@ -58,8 +57,9 @@ async function main() {
     }),
   ]);
 
-  console.log("✅ Utilisateurs créés");
-  console.log("→ admin@test.com / auditeur@test.com / superviseur@test.com (password: password123)");
+  console.log("✅ Seed terminé avec succès !");
+  console.log("→ admin@test.com / auditeur@test.com / superviseur@test.com");
+  console.log("→ Mot de passe : password123");
 }
 
 main()
