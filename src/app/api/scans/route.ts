@@ -1,8 +1,10 @@
+// src/app/api/scans/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { StatutScan, TypeScan, OutilScan } from '@prisma/client';
+import { orchestrateScan } from '@/lib/scanner/scanOrchestrator'; // ← Ajout important
 
 export async function GET(request: NextRequest) {
   try {
@@ -47,7 +49,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/scans
  * Crée un nouveau scan en statut PLANIFIE (EN ATTENTE)
- * Correspond à l'étape "Enregistrer le scan (EN ATTENTE)" du diagramme
+ * Puis lance l'orchestration complète selon le diagramme de séquence Flux 1
  */
 export async function POST(request: NextRequest) {
   try {
@@ -61,18 +63,19 @@ export async function POST(request: NextRequest) {
 
     // Validation minimale
     if (!idActif || !type || !outil || !cible) {
-      return NextResponse.json({ 
-        error: "Les champs idActif, type, outil et cible sont obligatoires" 
+      return NextResponse.json({
+        error: "Les champs idActif, type, outil et cible sont obligatoires"
       }, { status: 400 });
     }
 
+    // 1. Enregistrer le scan en statut PLANIFIE (EN ATTENTE) → Correspond au diagramme
     const scan = await prisma.scan.create({
       data: {
         idActif,
         lancerPar: session.user.id,
         type: type as TypeScan,
         outil: outil as OutilScan,
-        statut: StatutScan.PLANIFIE,        // ← Important : EN ATTENTE selon diagramme
+        statut: StatutScan.PLANIFIE,        // EN ATTENTE selon diagramme
         cible,
         debut: null,
         fin: null,
@@ -90,9 +93,17 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // 2. Lancer l'orchestration ASYNCHRONE (ne bloque pas la réponse utilisateur)
+    // Cela correspond à tout le reste du diagramme : Démarrer scan → OpenVAS → Post-processing → Alertes
+    setTimeout(() => {
+      orchestrateScan(scan.id).catch((error) => {
+        console.error(`Erreur orchestration scan ${scan.id}:`, error);
+      });
+    }, 800); // Petit délai pour laisser le temps à la réponse HTTP
+
     return NextResponse.json({
       success: true,
-      message: "Scan enregistré avec succès (EN ATTENTE)",
+      message: "Scan enregistré avec succès (EN ATTENTE) → Lancement du scan OpenVAS en cours...",
       data: scan
     }, { status: 201 });
 

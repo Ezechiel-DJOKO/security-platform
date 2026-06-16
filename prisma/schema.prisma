@@ -60,6 +60,7 @@ model Scan {
   fin           DateTime?
   duree         Int?
   resultatBrut  Json?
+  resultatOpenvas Json?
   metadata      Json?
   erreur        String?
   cible         String?
