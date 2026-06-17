@@ -1,114 +1,159 @@
-// src/lib/scan.ts
+'use server';
+
 import { prisma } from '@/lib/prisma';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
-import { StatutScan, OutilScan } from '@prisma/client';
-import { importResultsToPrisma } from './importResultsService';
-import { createCorrectionPlans } from './planCorrectionService';
-import { sendAlerts } from './alertService';
+import { StatutScan } from '@prisma/client';
+import { broadcastScanCompleted } from './sse';   // ← Import important
 
 const execAsync = promisify(exec);
 
-interface ScanResult {
-  status: string;
-  scanner?: string;
-  target?: string;
-  data?: any[];
-  findings?: number;
-  error?: string;
-  [key: string]: any;
-}
-
-/**
- * Fonction principale de lancement du scan en arrière-plan
- * Respecte strictement le diagramme de séquence Flux 1
- */
-export async function triggerScanBackground(scanId: string): Promise<void> {
+// ==================== TRIGGER SCAN ====================
+export async function triggerScanBackground(scanId: string) {
   console.log(`[SCAN START] Début du scan ${scanId}`);
 
   try {
-    // 1. Récupérer les infos du scan
     const scan = await prisma.scan.findUnique({
       where: { id: scanId },
-      include: { actif: true, utilisateur: true }
+      include: { actif: true }
     });
 
-    if (!scan || !scan.actif) {
-      throw new Error(`Scan ou actif introuvable pour l'ID ${scanId}`);
-    }
+    if (!scan) throw new Error(`Scan ${scanId} introuvable`);
 
-    const target = scan.cible || scan.actif.adresseIP || scan.actif.hostname;
-    if (!target) throw new Error("Aucune cible définie pour cet actif");
-
-    // 2. Mise à jour → EN_COURS (comme dans le diagramme)
-    await prisma.scan.update({
-      where: { id: scanId },
-      data: {
-        statut: StatutScan.EN_COURS,
-        debut: new Date()
-      }
-    });
-
-    console.log(`🎯 Cible : ${target} | Outil : ${scan.outil}`);
-
+    const cible = scan.cible;
+    const outil = scan.outil;
     const scriptPath = path.join(process.cwd(), 'python-scanner', 'scan.py');
-    const command = `python3 ${scriptPath} --tool ${scan.outil.toLowerCase()} --target ${target} --scan-id ${scanId}`;
 
+    console.log(`🎯 Cible : ${cible} | Outil : ${outil}`);
+
+    const command = `python3 ${scriptPath} --tool ${outil.toLowerCase()} --target ${cible} --scan-id ${scanId}`;
     console.log(`[SCAN] Exécution : ${command}`);
 
-    // Exécution avec timeout raisonnable
-    const { stdout, stderr } = await execAsync(command, { 
-      timeout: 900000, // 15 minutes max
-      maxBuffer: 10 * 1024 * 1024 // 10MB
-    });
+    const { stdout, stderr } = await execAsync(command, { timeout: 300000 });
 
-    if (stderr) console.warn("[Python stderr]:", stderr);
+    if (stderr) console.warn(`[Python stderr]: ${stderr}`);
+    if (stdout) console.log(`[Python stdout]: ${stdout}`);
 
-    let result: ScanResult;
-    try {
-      result = JSON.parse(stdout.trim());
-    } catch (e) {
-      console.error("Impossible de parser la sortie JSON du scanner");
-      result = { status: "error", error: "Sortie Python invalide (non-JSON)" };
-    }
+    await postScanProcessing(scanId);
 
-    // 3. Post-traitement complet selon le diagramme
-    if (result.status === "success" || result.status === "completed") {
-      // Import des vulnérabilités dans Prisma
-      await importResultsToPrisma(scanId, result);
-
-      // Création automatique des plans de correction
-      await createCorrectionPlans(scanId);
-
-      // Envoi des alertes (surtout pour les critiques)
-      await sendAlerts(scanId);
-
-      // Mise à jour finale
-      await prisma.scan.update({
-        where: { id: scanId },
-        data: {
-          statut: StatutScan.TERMINE,
-          fin: new Date(),
-          resultatBrut: result as any,
-        }
-      });
-
-      console.log(`✅ [SCAN SUCCESS] Scan ${scanId} terminé avec succès`);
-    } else {
-      throw new Error(result.error || "Le scan a échoué sans message d'erreur");
-    }
+    return { success: true, scanId };
 
   } catch (error: any) {
-    console.error(`❌ [SCAN ERROR] Scan ${scanId}:`, error.message);
+    console.error(`❌ Erreur lors du scan ${scanId}:`, error);
 
     await prisma.scan.update({
       where: { id: scanId },
       data: {
         statut: StatutScan.ECHEC,
         fin: new Date(),
-        erreur: error.message?.substring(0, 500)
+        erreur: error.message || 'Erreur inconnue',
       }
     });
+
+    throw error;
+  }
+}
+
+// ==================== POST-PROCESSING ====================
+async function postScanProcessing(scanId: string) {
+  try {
+    console.log(`📥 Début du post-traitement pour le scan ${scanId}...`);
+
+    await createRemediationPlans(scanId);
+
+    await prisma.scan.update({
+      where: { id: scanId },
+      data: {
+        statut: StatutScan.TERMINE,
+        fin: new Date(),
+      }
+    });
+
+    console.log(`✅ [SCAN SUCCESS] Scan ${scanId} terminé avec succès`);
+
+    await sendScanCompletionAlert(scanId);
+
+  } catch (error) {
+    console.error(`Erreur post-traitement scan ${scanId}:`, error);
+  }
+}
+
+// ==================== CRÉATION PLANS ====================
+async function createRemediationPlans(scanId: string) {
+  try {
+    const vulnerabilites = await prisma.vulnerabilite.findMany({
+      where: {
+        idScan: scanId,
+        plansCorrection: { none: {} }
+      }
+    });
+
+    console.log(`🛠️ Création de ${vulnerabilites.length} plans de correction...`);
+
+    await Promise.all(
+      vulnerabilites.map(vuln => {
+        let priorite: any = 'MOYENNE';
+        if (vuln.severite === 'CRITICAL' || vuln.severite === 'HIGH') {
+          priorite = 'HAUTE';
+        }
+
+        return prisma.planCorrection.create({
+          data: {
+            idVulnerabilite: vuln.id,
+            priorite,
+            assigneA: null as any,
+            dateEcheance: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            statut: 'EN_COURS',
+            commentaire: `Plan généré automatiquement après le scan ${scanId}`,
+          }
+        });
+      })
+    );
+
+    console.log(`✅ Plans de correction créés avec succès`);
+  } catch (error) {
+    console.error("Erreur création plans:", error);
+  }
+}
+
+// ==================== ENVOI ALERTE ====================
+async function sendScanCompletionAlert(scanId: string) {
+  try {
+    const scan = await prisma.scan.findUnique({
+      where: { id: scanId },
+      include: { vulnerabilites: true }
+    });
+
+    if (!scan) return;
+
+    const nbCritiques = scan.vulnerabilites.filter((v: any) => v.severite === 'CRITIQUE').length;
+
+    await prisma.auditLog.create({
+      data: {
+        action: 'SCAN_COMPLETED' as any,
+        entite: 'SCAN' as any,
+        idEntite: scanId,
+        details: {
+          cible: scan.cible,
+          outil: scan.outil,
+          nbVulnerabilites: scan.vulnerabilites.length,
+          nbCritiques
+        }
+      }
+    });
+
+    broadcastScanCompleted({
+      scanId: scan.id,
+      cible: scan.cible,
+      nbVulnerabilites: scan.vulnerabilites.length,
+      nbCritiques,
+      message: nbCritiques > 0
+        ? `🚨 Scan terminé : ${nbCritiques} vulnérabilité(s) critique(s)`
+        : `✅ Scan terminé avec succès sur ${scan.cible}`
+    });
+
+  } catch (error) {
+    console.error("Erreur envoi alerte:", error);
   }
 }

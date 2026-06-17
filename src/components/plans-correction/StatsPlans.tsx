@@ -1,14 +1,13 @@
 'use client';
-
-import { Clock, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export default function StatsPlans() {
   const [stats, setStats] = useState({
-    enCours: 0,
-    aValider: 0,
-    termines: 0,
-    enRetard: 0,
+    TOTAL: 0,
+    EN_COURS: 0,
+    A_VALIDER: 0,
+    TERMINE: 0,
+    EN_RETARD: 0
   });
   const [loading, setLoading] = useState(true);
 
@@ -18,47 +17,40 @@ export default function StatsPlans() {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch('/api/plans-correction/stats', { cache: 'no-store' });
+      const res = await fetch('/api/plans-correction/stats');
       if (res.ok) {
         const data = await res.json();
         setStats(data);
       }
     } catch (error) {
-      console.error('Erreur stats plans:', error);
+      console.error(error);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
-    return <div className="h-32 bg-slate-900 rounded-2xl animate-pulse" />;
-  }
+  const cards = [
+    { label: "En cours", value: stats.EN_COURS, color: "blue", icon: "⏳" },
+    { label: "À valider", value: stats.A_VALIDER, color: "yellow", icon: "⚠️" },
+    { label: "Terminés", value: stats.TERMINE, color: "green", icon: "✅" },
+    { label: "En retard", value: stats.EN_RETARD, color: "red", icon: "🚨" },
+  ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-      <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6">
-        <Clock className="w-8 h-8 text-blue-400 mb-4" />
-        <p className="text-4xl font-bold text-white">{stats.enCours}</p>
-        <p className="text-slate-400 mt-1">En cours</p>
-      </div>
-
-      <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6">
-        <AlertTriangle className="w-8 h-8 text-amber-400 mb-4" />
-        <p className="text-4xl font-bold text-white">{stats.aValider}</p>
-        <p className="text-slate-400 mt-1">À valider</p>
-      </div>
-
-      <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6">
-        <CheckCircle className="w-8 h-8 text-emerald-400 mb-4" />
-        <p className="text-4xl font-bold text-white">{stats.termines}</p>
-        <p className="text-slate-400 mt-1">Terminés</p>
-      </div>
-
-      <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6">
-        <AlertTriangle className="w-8 h-8 text-red-400 mb-4" />
-        <p className="text-4xl font-bold text-white">{stats.enRetard}</p>
-        <p className="text-slate-400 mt-1">En retard</p>
-      </div>
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {cards.map((card, i) => (
+        <div key={i} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-colors">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-slate-400 text-sm">{card.label}</p>
+              <p className="text-4xl font-bold text-white mt-2">
+                {loading ? '...' : card.value}
+              </p>
+            </div>
+            <div className="text-4xl opacity-80">{card.icon}</div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
