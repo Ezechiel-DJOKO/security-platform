@@ -1,6 +1,6 @@
 'use client';
 import { Suspense, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, RefreshCw } from 'lucide-react';
 import PlansCorrectionTable from '@/components/plans-correction/PlansCorrectionTable';
 import StatsPlans from '@/components/plans-correction/StatsPlans';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,14 @@ import toast from 'react-hot-toast';
 
 export default function PlansCorrectionPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0); // Pour rafraîchir le tableau
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [filterStatus, setFilterStatus] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const refreshData = () => {
+    setRefreshKey(prev => prev + 1);
+    toast.success("Tableau rafraîchi");
+  };
 
   const handleCreatePlan = async (data: any) => {
     try {
@@ -23,7 +30,7 @@ export default function PlansCorrectionPage() {
       if (res.ok) {
         toast.success('✅ Plan de correction créé avec succès !');
         setIsModalOpen(false);
-        setRefreshKey(prev => prev + 1); // Rafraîchit le tableau
+        refreshData();
       } else {
         const error = await res.json();
         toast.error(error.error || '❌ Erreur lors de la création');
@@ -35,23 +42,28 @@ export default function PlansCorrectionPage() {
   };
 
   return (
-    <RoleGate allowedRoles={['ADMIN', 'AUDITEUR', 'SUPERVISEUR']}>
+    <RoleGate allowedRoles={['ADMIN', 'SUPERVISEUR', 'AUDITEUR']}>
       <div className="p-6 space-y-8">
         {/* Header */}
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-3xl font-bold text-white">Plans de Correction</h1>
             <p className="text-slate-400 mt-2">
-              Suivi et gestion des plans de remédiation des vulnérabilités
+              Suivi et gestion des actions de remédiation des vulnérabilités
             </p>
           </div>
-          <Button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            Nouveau Plan
-          </Button>
+
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={refreshData} className="flex items-center gap-2">
+              <RefreshCw className="w-4 h-4" />
+              Rafraîchir
+            </Button>
+
+            <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2">
+              <Plus className="w-5 h-5" />
+              Nouveau Plan
+            </Button>
+          </div>
         </div>
 
         {/* Statistiques */}
@@ -59,32 +71,51 @@ export default function PlansCorrectionPage() {
           <StatsPlans />
         </Suspense>
 
-        {/* Tableau principal */}
-        <div className="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden">
-          <div className="p-6 border-b border-slate-800 flex justify-between items-center">
-            <h2 className="text-xl font-semibold">Liste des Plans de Correction</h2>
-            <div className="flex gap-3">
-              <select className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-blue-500">
-                <option value="">Tous les statuts</option>
-                <option value="EN_COURS">En cours</option>
-                <option value="A_VALIDER">À valider</option>
-                <option value="TERMINE">Terminé</option>
-                <option value="EN_RETARD">En retard</option>
-              </select>
-              <input
-                type="text"
-                placeholder="Rechercher une vulnérabilité..."
-                className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm w-72 focus:outline-none focus:border-blue-500"
-              />
-            </div>
+        {/* Filtres */}
+        <div className="flex gap-4 items-center bg-slate-950 border border-slate-800 rounded-xl p-4">
+          <div className="flex-1">
+            <input
+              type="text"
+              placeholder="Rechercher une vulnérabilité ou CVE..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500"
+            />
           </div>
 
-          <Suspense fallback={<div className="p-12 text-center text-slate-400">Chargement des plans...</div>}>
-            <PlansCorrectionTable key={refreshKey} /> {/* Rafraîchissement contrôlé */}
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500"
+          >
+            <option value="">Tous les statuts</option>
+            <option value="A_FAIRE">À faire</option>
+            <option value="EN_COURS">En cours</option>
+            <option value="TERMINE">Terminé</option>
+            <option value="VERIFIE">Vérifié</option>
+            <option value="ANNULE">Annulé</option>
+            <option value="EN_RETARD">En retard</option>
+          </select>
+        </div>
+
+        {/* Tableau des plans */}
+        <div className="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden">
+          <div className="p-6 border-b border-slate-800">
+            <h2 className="text-xl font-semibold">Liste des Plans de Correction</h2>
+          </div>
+
+          <Suspense fallback={
+            <div className="p-12 text-center text-slate-400">Chargement des plans...</div>
+          }>
+            <PlansCorrectionTable 
+              key={refreshKey} 
+              filterStatus={filterStatus}
+              searchTerm={searchTerm}
+            />
           </Suspense>
         </div>
 
-        {/* Modale de création */}
+        {/* Modal de création */}
         <NewPlanModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
