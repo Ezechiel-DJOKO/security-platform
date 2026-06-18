@@ -5,19 +5,12 @@ import {
   Download,
   Calendar,
   FileText,
-  TrendingUp,
   FileSpreadsheet,
   FileJson,
-  Award
+  Award,
+  Clock
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-
-// Données statiques
-const rapportsRecents = [
-  { id: "RPT-202605", titre: "Rapport Mensuel de Sécurité - Mai 2026", type: "Synthèse", date: "24 Mai 2026", taille: "2.4 MB" },
-  { id: "RPT-202604", titre: "Audit des Vulnérabilités Q2 2026", type: "Technique", date: "15 Mai 2026", taille: "4.1 MB" },
-  { id: "RPT-202603", titre: "Conformité ISO 27001 - Rapport Trimestriel", type: "Conformité", date: "02 Mai 2026", taille: "1.8 MB" },
-];
 
 const statsData = [
   { mois: 'Jan', incidents: 14, resolution: 85 },
@@ -36,15 +29,22 @@ const typeRapportData = [
 export default function RapportsContent() {
   const [periode, setPeriode] = useState('mois');
   const [isExporting, setIsExporting] = useState(false);
-  const sessionContext = useSession();
+  const { data: session, status } = useSession();
 
-  if (!sessionContext || sessionContext.status === "loading") {
-    return <div className="flex items-center justify-center h-96 text-slate-400">Chargement des rapports...</div>;
+  if (status === "loading") {
+    return (
+      <div className="flex items-center justify-center h-96 text-slate-400">
+        Chargement des rapports...
+      </div>
+    );
   }
 
-  const { data: session } = sessionContext;
   if (!session) {
-    return <div className="text-center py-12 text-amber-500">Vous devez être connecté pour accéder aux rapports.</div>;
+    return (
+      <div className="text-center py-12 text-amber-500">
+        Vous devez être connecté pour accéder aux rapports.
+      </div>
+    );
   }
 
   // Fonctions d'export
@@ -115,7 +115,7 @@ export default function RapportsContent() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `comparatif-outils-audit-${new Date().toISOString().slice(0,10)}.pdf`;
+      a.download = `comparatif-outils-${new Date().toISOString().slice(0,10)}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -123,10 +123,6 @@ export default function RapportsContent() {
     } finally {
       setIsExporting(false);
     }
-  };
-
-  const downloadRecentReport = (id: string, titre: string) => {
-    alert(`📥 Téléchargement du rapport :\n${titre}\n\n(ID: ${id})\n\nFonctionnalité en cours de développement.`);
   };
 
   return (
@@ -140,16 +136,32 @@ export default function RapportsContent() {
 
         {/* Boutons d'export */}
         <div className="flex gap-3 flex-wrap">
-          <button onClick={exportJSON} disabled={isExporting} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-5 py-3 rounded-2xl text-white disabled:opacity-50">
+          <button 
+            onClick={exportJSON} 
+            disabled={isExporting} 
+            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-5 py-3 rounded-2xl text-white disabled:opacity-50 transition"
+          >
             <FileJson className="w-5 h-5" /> JSON
           </button>
-          <button onClick={exportExcel} disabled={isExporting} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 px-5 py-3 rounded-2xl text-white disabled:opacity-50">
+          <button 
+            onClick={exportExcel} 
+            disabled={isExporting} 
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 px-5 py-3 rounded-2xl text-white disabled:opacity-50 transition"
+          >
             <FileSpreadsheet className="w-5 h-5" /> Excel
           </button>
-          <button onClick={exportPDF} disabled={isExporting} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 px-5 py-3 rounded-2xl text-white disabled:opacity-50">
+          <button 
+            onClick={exportPDF} 
+            disabled={isExporting} 
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 px-5 py-3 rounded-2xl text-white disabled:opacity-50 transition"
+          >
             <FileText className="w-5 h-5" /> PDF
           </button>
-          <button onClick={generateComparativeReport} disabled={isExporting} className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 px-5 py-3 rounded-2xl text-white disabled:opacity-50">
+          <button 
+            onClick={generateComparativeReport} 
+            disabled={isExporting} 
+            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 px-5 py-3 rounded-2xl text-white disabled:opacity-50 transition"
+          >
             <Award className="w-5 h-5" /> Comparatif Outils
           </button>
         </div>
@@ -178,7 +190,14 @@ export default function RapportsContent() {
           <h3 className="text-xl font-semibold text-white mb-6">Répartition par Type</h3>
           <ResponsiveContainer width="100%" height={380}>
             <PieChart>
-              <Pie data={typeRapportData} cx="50%" cy="50%" innerRadius={70} outerRadius={110} dataKey="value">
+              <Pie 
+                data={typeRapportData} 
+                cx="50%" 
+                cy="50%" 
+                innerRadius={70} 
+                outerRadius={110} 
+                dataKey="value"
+              >
                 {typeRapportData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
@@ -189,34 +208,19 @@ export default function RapportsContent() {
         </div>
       </div>
 
-      {/* Rapports Récents */}
-      <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6">
-        <h3 className="text-xl font-semibold text-white mb-6">Rapports Récents</h3>
-        <div className="space-y-4">
-          {rapportsRecents.map((rapport) => (
-            <div key={rapport.id} className="flex items-center justify-between bg-slate-900 hover:bg-slate-800 rounded-2xl p-5 transition-all group">
-              <div className="flex items-center gap-5">
-                <div className="w-12 h-12 bg-blue-600/10 rounded-2xl flex items-center justify-center">
-                  <FileText className="w-6 h-6 text-blue-500" />
-                </div>
-                <div>
-                  <p className="font-medium text-white group-hover:text-blue-400">{rapport.titre}</p>
-                  <p className="text-sm text-slate-400">{rapport.type} • {rapport.date}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-6">
-                <span className="text-sm text-slate-500">{rapport.taille}</span>
-                <button 
-                  onClick={() => downloadRecentReport(rapport.id, rapport.titre)}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-6 py-2.5 rounded-xl text-white transition-all"
-                >
-                  <Download className="w-4 h-4" />
-                  Télécharger
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* Section Rapports issus des Plans de Correction */}
+      <div className="bg-slate-950 border border-slate-800 rounded-3xl p-10 text-center">
+        <Clock className="w-16 h-16 mx-auto text-slate-500 mb-6" />
+        <h3 className="text-2xl font-semibold text-white mb-3">
+          Rapports des Plans de Correction
+        </h3>
+        <p className="text-slate-400 max-w-lg mx-auto mb-6">
+          Les rapports générés automatiquement à partir des plans de correction validés 
+          et des vulnérabilités corrigées seront disponibles prochainement dans cette section.
+        </p>
+        <p className="text-sm text-slate-500">
+          Cette fonctionnalité sera reliée aux statuts des plans de correction (Terminé / Validé).
+        </p>
       </div>
     </div>
   );

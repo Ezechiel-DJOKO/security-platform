@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma';
 import * as XLSX from 'xlsx';
 import puppeteer from 'puppeteer';
 
-// Interfaces
 interface Vulnerabilite {
   id: string;
   titre: string;
@@ -58,23 +57,24 @@ export async function GET(request: NextRequest) {
     const [vulnerabilities, controles] = await Promise.all([
       prisma.vulnerabilite.findMany({
         take: 100,
-        select: { 
-          id: true, 
-          titre: true, 
-          severite: true, 
-          scoreCVSS: true, 
-          statut: true, 
-          dateDecouverte: true 
+        orderBy: { dateDecouverte: 'desc' },
+        select: {
+          id: true,
+          titre: true,
+          severite: true,
+          scoreCVSS: true,
+          statut: true,
+          dateDecouverte: true,
         },
       }),
       prisma.controlConformite.findMany({
         take: 50,
-        select: { 
-          id: true, 
-          code: true, 
-          nom: true, 
-          statut: true, 
-          referentiel: true 
+        select: {
+          id: true,
+          code: true,
+          nom: true,
+          statut: true,
+          referentiel: true,
         },
       }),
     ]);
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
       statistiques: {
         parSeverite: groupBySeverity(vulnerabilities),
         conformite: calculateConformite(controles),
-      }
+      },
     };
 
     if (format === 'xlsx') return exportExcel(data);
@@ -110,10 +110,11 @@ export async function GET(request: NextRequest) {
 }
 
 // ================== FONCTIONS UTILITAIRES ==================
-function generateRecommendations(vulnerabilities: Vulnerabilite[], controles: Controle[]) {
+function generateRecommendations(vulnerabilities: any[], controles: any[]) {
   const recs: Recommandation[] = [];
-  const criticalVulns = vulnerabilities.filter(v => 
-    v.severite === 'CRITIQUE' || (v.scoreCVSS && v.scoreCVSS >= 9.0)
+
+  const criticalVulns = vulnerabilities.filter(v =>
+    v.severite === 'CRITICAL' || (v.scoreCVSS && v.scoreCVSS >= 9.0)
   );
 
   if (criticalVulns.length > 0) {
@@ -148,7 +149,7 @@ function generateRecommendations(vulnerabilities: Vulnerabilite[], controles: Co
   return recs;
 }
 
-function groupBySeverity(vulns: Vulnerabilite[]) {
+function groupBySeverity(vulns: any[]) {
   const stats: Record<string, number> = {};
   vulns.forEach(v => {
     const sev = v.severite || 'UNKNOWN';
@@ -157,7 +158,7 @@ function groupBySeverity(vulns: Vulnerabilite[]) {
   return stats;
 }
 
-function calculateConformite(controles: Controle[]) {
+function calculateConformite(controles: any[]) {
   const total = controles.length;
   const conforme = controles.filter(c => c.statut === 'CONFORME').length;
   return {
@@ -167,7 +168,7 @@ function calculateConformite(controles: Controle[]) {
   };
 }
 
-// ================== EXPORTS CORRIGÉS ==================
+// ================== EXPORTS ==================
 function exportExcel(data: ExportData) {
   const wb = XLSX.utils.book_new();
 
@@ -177,7 +178,7 @@ function exportExcel(data: ExportData) {
     Severite: v.severite,
     CVSS: v.scoreCVSS,
     Statut: v.statut,
-    Date: v.dateDecouverte ? new Date(v.dateDecouverte).toLocaleDateString('fr-FR') : '',
+    "Date Découverte": v.dateDecouverte ? new Date(v.dateDecouverte).toLocaleDateString('fr-FR') : '',
   }));
 
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vulnsData), "Vulnérabilités");
@@ -193,7 +194,7 @@ function exportExcel(data: ExportData) {
 
   const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
 
-  return new NextResponse(buffer as any, {
+  return new NextResponse(buffer as any, {  // Correction ici
     status: 200,
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -219,7 +220,7 @@ async function exportPDF(data: ExportData) {
       margin: { top: 40, right: 40, bottom: 40, left: 40 },
     });
 
-    return new NextResponse(pdfBuffer as any, {
+    return new NextResponse(pdfBuffer as any, {  // Correction ici
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
@@ -251,7 +252,7 @@ function generatePDFHTML(data: ExportData) {
       <meta charset="UTF-8">
       <title>Rapport de Sécurité</title>
       <style>
-        body { font-family: Arial, sans-serif; margin: 40px; color: #111; line-height: 1.5; }
+        body { font-family: Arial, sans-serif; margin: 40px; color: #111; line-height: 1.6; }
         h1 { color: #1e40af; text-align: center; }
         h2 { color: #1e40af; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
         table { width: 100%; border-collapse: collapse; margin: 20px 0; }
@@ -265,20 +266,23 @@ function generatePDFHTML(data: ExportData) {
       <h2>Synthèse</h2>
       <p><strong>Total Vulnérabilités :</strong> ${data.metadata.totalVulnerabilites}</p>
       <p><strong>Taux de Conformité :</strong> ${data.statistiques.conformite.tauxConformite}%</p>
+      
       <h2>Recommandations Prioritaires</h2>
       <table>
         <tr><th>Priorité</th><th>Titre</th><th>Description</th><th>Action</th><th>Délai</th></tr>
         ${recsHTML}
       </table>
+
       <h2>Vulnérabilités Récentes</h2>
       <table>
-        <tr><th>ID</th><th>Titre</th><th>Sévérité</th><th>Score CVSS</th></tr>
+        <tr><th>ID</th><th>Titre</th><th>Sévérité</th><th>Score CVSS</th><th>Statut</th></tr>
         ${data.vulnerabilites.slice(0, 10).map(v => `
           <tr>
             <td>${v.id}</td>
             <td>${v.titre}</td>
             <td>${v.severite}</td>
             <td>${v.scoreCVSS || 'N/A'}</td>
+            <td>${v.statut}</td>
           </tr>
         `).join('')}
       </table>

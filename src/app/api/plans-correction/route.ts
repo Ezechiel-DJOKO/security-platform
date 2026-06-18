@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { StatutPlan, Priorite } from '@prisma/client';
+import { StatutPlan } from '@prisma/client'; // ou votre enum
 
 // ========== GET (existant) ==========
 export async function GET() {
@@ -48,7 +48,7 @@ export async function GET() {
   }
 }
 
-// ========== POST (CORRIGÉ) ==========
+// ========== POST (À AJOUTER) ==========
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -58,21 +58,18 @@ export async function POST(request: Request) {
 
     const body = await request.json();
 
-    // Validation
-    if (!body.idVulnerabilite) {
-      return NextResponse.json({ error: "idVulnerabilite requis" }, { status: 400 });
-    }
-
+    // Création du plan de correction
     const plan = await prisma.planCorrection.create({
       data: {
         idVulnerabilite: body.idVulnerabilite,
-        assigneA: body.assigneA || session.user.id,  // ← CLÉ ÉTRANGÈRE DIRECTE
-        priorite: body.priorite || Priorite.MOYENNE,
-        dateEcheance: body.dateEcheance 
-          ? new Date(body.dateEcheance) 
-          : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        statut: body.statut || StatutPlan.A_FAIRE,
+        assigneA: body.assigneA,
+        priorite: body.priorite,                    // ← BASSE, MOYENNE, HAUTE, CRITIQUE
+        dateEcheance: new Date(body.dateEcheance),
+        statut: body.statut || StatutPlan.A_FAIRE,  // ← A_FAIRE, EN_COURS, TERMINE, EN_RETARD, ANNULE, VERIFIE
         commentaire: body.commentaire || undefined,
+        dateResolution: body.dateResolution
+          ? new Date(body.dateResolution)
+          : new Date(),
       },
       include: {
         vulnerabilite: {
