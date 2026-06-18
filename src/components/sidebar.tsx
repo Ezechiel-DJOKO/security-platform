@@ -15,11 +15,11 @@ import {
 const navItems = [
   { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/inventaire', label: 'Inventaire', icon: Package },
-  { href: '/vulnerabilites', label: 'Vulnérabilités', icon: Bug },
-  { href: '/conformite', label: 'Conformité', icon: ShieldCheck },
   { href: '/scans', label: 'Scans', icon: ScanLine },
+  { href: '/vulnerabilites', label: 'Vulnérabilités', icon: Bug },
   { href: '/plans-correction', label: 'Plans de correction', icon: CheckSquare },
   { href: '/rapports', label: 'Rapports', icon: FileText },
+  { href: '/conformite', label: 'Conformité', icon: ShieldCheck },
   { href: '/utilisateurs', label: 'Utilisateurs', icon: Users }, // Ajoute l'import { Users } from 'lucide-react'
 ];
 
