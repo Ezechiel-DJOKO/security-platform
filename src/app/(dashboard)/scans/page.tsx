@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { RoleGate } from '@/components/RoleGate';
 import GestionnaireScanCard from '@/components/scans/GestionnaireScanCard';
-import { prisma } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,8 +39,6 @@ export default async function ScansPage() {
           <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {actifs.map((actif) => {
               const dernierScan = actif.scans[0];
-              const estEnCours = dernierScan?.statut === 'EN_COURS' || dernierScan?.statut === 'PLANIFIE';
-
               return (
                 <div
                   key={actif.id}
@@ -53,10 +51,12 @@ export default async function ScansPage() {
                     </p>
                   </div>
 
-                  <Suspense fallback={<div className="h-32 bg-slate-800 rounded-xl animate-pulse" />}>
+                  <Suspense fallback={<div className="h-48 bg-slate-800 rounded-xl animate-pulse" />}>
                     <GestionnaireScanCard
                       idActif={actif.id}
-                      scanIdEnCours={estEnCours ? dernierScan?.id : undefined}
+                      nomActif={actif.nom}
+                      adresseIP={actif.adresseIP || actif.hostname || ''}
+                      scanIdEnCours={dernierScan?.id}
                     />
                   </Suspense>
                 </div>

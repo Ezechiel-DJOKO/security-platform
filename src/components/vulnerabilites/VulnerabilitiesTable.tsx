@@ -115,47 +115,56 @@ export function VulnerabilitiesTable() {
   return (
     <div className="space-y-4">
       {/* Zone des filtres */}
-      <div className="flex flex-wrap gap-3 items-center bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
-        <input
-          type="text"
-          placeholder="Rechercher CVE, titre..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full max-w-sm rounded-md border border-slate-300 bg-white px-3 py-2 text-sm placeholder-slate-400 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-850 dark:text-slate-50"
-        />
+      {/* Zone des filtres */}
+<div className="flex flex-wrap gap-3 items-center bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
+  
+  <input
+    type="text"
+    placeholder="Rechercher CVE, titre..."
+    value={search}
+    onChange={(e) => setSearch(e.target.value)}
+    className="w-full max-w-sm rounded-md border border-slate-300 bg-white px-3 py-2 text-sm 
+               placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 
+               dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
+  />
 
-        <select
-          value={severiteFilter}
-          onChange={(e) => setSeveriteFilter(e.target.value)}
-          className="w-40 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-850 dark:text-slate-50"
-        >
-          <option value="">Toutes les sévérités</option>
-          <option value="CRITICAL">Critique</option>
-          <option value="HIGH">Haute</option>
-          <option value="MEDIUM">Moyenne</option>
-          <option value="LOW">Basse</option>
-        </select>
+  <select
+    value={severiteFilter}
+    onChange={(e) => setSeveriteFilter(e.target.value)}
+    className="w-40 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm 
+               focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 
+               dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+  >
+    <option value="">Toutes les sévérités</option>
+    <option value="CRITICAL">Critique</option>
+    <option value="HIGH">Haute</option>
+    <option value="MEDIUM">Moyenne</option>
+    <option value="LOW">Basse</option>
+  </select>
 
-        <select
-          value={statutFilter}
-          onChange={(e) => setStatutFilter(e.target.value)}
-          className="w-40 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-850 dark:text-slate-50"
-        >
-          <option value="">Tous les statuts</option>
-          <option value="OUVERTE">Ouverte</option>
-          <option value="EN_COURS">En cours</option>
-          <option value="CORRIGEE">Corrigée</option>
-          <option value="VERIFIEE">Vérifiée</option>
-        </select>
+  <select
+    value={statutFilter}
+    onChange={(e) => setStatutFilter(e.target.value)}
+    className="w-40 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm 
+               focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 
+               dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+  >
+    <option value="">Tous les statuts</option>
+    <option value="OUVERTE">Ouverte</option>
+    <option value="EN_COURS">En cours</option>
+    <option value="CORRIGEE">Corrigée</option>
+    <option value="VERIFIEE">Vérifiée</option>
+  </select>
 
-        <button
-          onClick={fetchVulnerabilities}
-          className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Rafraîchir
-        </button>
-      </div>
+  <button
+    onClick={fetchVulnerabilities}
+    className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 
+               dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+  >
+    <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+    Rafraîchir
+  </button>
+</div>
 
       {/* Tableau */}
       <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-white dark:bg-slate-900 shadow-sm">

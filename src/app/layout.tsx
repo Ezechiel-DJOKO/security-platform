@@ -1,14 +1,13 @@
-// src/app/layout.tsx
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
-import { ClientLayout } from "@/components/providers/ClientLayout";
-
-const inter = Inter({ subsets: ["latin"] });
+import { ClientLayout } from "@/components/providers/ClientLayout"; // Ajuste le chemin si nécessaire
 
 export const metadata: Metadata = {
   title: "Security Platform",
-  description: "Plateforme de Gestion de Sécurité",
+  description: "Gestion des vulnérabilités et plans de correction",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
@@ -17,8 +16,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr">
-      <body className={inter.className}>
+    <html lang="fr" suppressHydrationWarning>
+      <body>
         <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
