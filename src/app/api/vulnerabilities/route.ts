@@ -15,7 +15,7 @@ const vulnerabilitySchema = z.object({
   scoreCVSS: z.number().min(0).max(10).optional(),
   epssScore: z.number().min(0).max(1).optional(),
   vecteurCVSS: z.string().optional(),
-  statut: z.enum(['OUVERTE', 'EN_COURS', 'CORRIGEE', 'IGNORE', 'RISQUE_ACCEPTE', 'VERIFIEE']).default('OUVERTE'),
+  statut: z.enum(['OUVERTE', 'EN_COURS']).default('OUVERTE'), // On limite ici
   assigneA: z.string().uuid().optional().nullable(),
   preuve: z.string().optional(),
   impact: z.string().optional(),
@@ -27,18 +27,17 @@ function calculateRisqueRelatif(scoreCVSS: number | null, epssScore: number | nu
   if (!scoreCVSS) return 0;
   let baseRisk = scoreCVSS;
   if (epssScore) baseRisk += epssScore * 4;
-  const severityMultiplier: Record<string, number> = { CRITICAL: 1.4, HIGH: 1.2, MEDIUM: 1.0, LOW: 0.7 };
+
+  const severityMultiplier: Record<string, number> = { 
+    CRITICAL: 1.4, 
+    HIGH: 1.2, 
+    MEDIUM: 1.0, 
+    LOW: 0.7 
+  };
+
   const risque = baseRisk * (severityMultiplier[severite] || 1.0);
   return Math.min(Math.max(Math.round(risque * 10) / 10, 0), 10);
 }
-
-// ─── Helpers pour cast les enums ───────────────────────
-
-const isSeverite = (s: string): s is Severite => 
-  ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(s);
-
-const isStatutVulnerabilite = (s: string): s is StatutVulnerabilite =>
-  ['OUVERTE', 'EN_COURS', 'CORRIGEE', 'IGNORE', 'RISQUE_ACCEPTE', 'VERIFIEE'].includes(s);
 
 // GET
 export async function GET(req: NextRequest) {
@@ -50,29 +49,35 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '20');
   const skip = (page - 1) * limit;
 
-  const where: Prisma.VulnerabiliteWhereInput = {};
+  const where: Prisma.VulnerabiliteWhereInput = {
+    deletedAt: null,
+  };
 
+  // Sévérité
   const severiteParam = searchParams.get('severite');
   if (severiteParam) {
-    const severites = severiteParam.split(',').filter(isSeverite);
+    const severites = severiteParam.split(',').filter((s): s is Severite =>
+      ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(s)
+    );
     if (severites.length > 0) where.severite = { in: severites };
   }
 
+  // Statut (CORRIGÉ)
   const statutParam = searchParams.get('statut');
   if (statutParam) {
-    const statuts = statutParam.split(',').filter(isStatutVulnerabilite);
-    if (statuts.length > 0) where.statut = { in: statuts };
+    const validStatuts: StatutVulnerabilite[] = statutParam
+      .split(',')
+      .map(s => s.trim().toUpperCase() as StatutVulnerabilite)
+      .filter((s): s is StatutVulnerabilite => 
+        ['OUVERTE', 'EN_COURS'].includes(s)
+      );
+
+    if (validStatuts.length > 0) {
+      where.statut = { in: validStatuts };
+    }
   }
 
-  const assigneA = searchParams.get('assigneA');
-  if (assigneA) where.assigneA = assigneA;
-
-  const idScan = searchParams.get('idScan');
-  if (idScan) where.idScan = idScan;
-
-  const cveId = searchParams.get('cveId');
-  if (cveId) where.cveId = { contains: cveId };
-
+  // Autres filtres...
   const search = searchParams.get('search');
   if (search) {
     where.OR = [
@@ -80,20 +85,6 @@ export async function GET(req: NextRequest) {
       { description: { contains: search, mode: 'insensitive' } },
       { cveId: { contains: search, mode: 'insensitive' } },
     ];
-  }
-
-  const tags = searchParams.get('tags')?.split(',');
-  if (tags && tags.length > 0) {
-    where.tags = { some: { tag: { nom: { in: tags } } } };
-  }
-
-  // Score range
-  const minScore = searchParams.get('minScore');
-  const maxScore = searchParams.get('maxScore');
-  if (minScore || maxScore) {
-    where.scoreCVSS = {};
-    if (minScore) where.scoreCVSS.gte = parseFloat(minScore);
-    if (maxScore) where.scoreCVSS.lte = parseFloat(maxScore);
   }
 
   const [vulnerabilities, total] = await Promise.all([
@@ -121,7 +112,7 @@ export async function GET(req: NextRequest) {
   });
 }
 
-// POST
+// POST (Import depuis scan)
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
@@ -139,6 +130,7 @@ export async function POST(req: NextRequest) {
     const vulnerability = await prisma.vulnerabilite.create({
       data: {
         ...validated,
+        statut: 'OUVERTE',        // Force OUVERTE à la création (import scan)
         risqueRelatif,
         tags: validated.tags ? {
           create: validated.tags.map(name => ({
@@ -155,7 +147,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(vulnerability, { status: 201 });
   } catch (error: unknown) {
-    console.error(error);
+    console.error('Erreur création vulnérabilité:', error);
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });
     }

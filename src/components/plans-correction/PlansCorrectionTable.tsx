@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Edit3, CheckCircle, Trash2, XCircle, Eye, Play } from 'lucide-react';
+import { Edit3, CheckCircle, Trash2, XCircle, Eye, Play, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import toast from 'react-hot-toast';
 
@@ -10,9 +10,14 @@ type PlanCorrection = {
     id: string;
     titre: string;
     severite: string;
+    statut: string; // Ajouté pour cohérence
   };
+  assigne: {          // Changé : on veut l'objet complet si possible
+    id: string;
+    nom: string;
+    prenom: string;
+  } | null;
   priorite: string;
-  assigneA: string | null;
   dateEcheance: string;
   statut: string;
 };
@@ -37,18 +42,17 @@ export default function PlansCorrectionTable({
   searchTerm = '',
   onStatChange,
 }: PlansCorrectionTableProps) {
-
   const [plans, setPlans] = useState<PlanCorrection[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchPlans = async () => {
     try {
-      const res = await fetch('/api/plans-correction', { 
+      const res = await fetch('/api/plans-correction', {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache' }
       });
       const data = await res.json();
-      setPlans(Array.isArray(data) ? data : data.plans || []);
+      setPlans(Array.isArray(data) ? data : data.plans || data.data || []);
     } catch (error) {
       console.error('Erreur fetch plans:', error);
       toast.error("Impossible de charger les plans de correction");
@@ -64,9 +68,9 @@ export default function PlansCorrectionTable({
   const filteredPlans = useMemo(() => {
     return plans.filter((plan) => {
       const matchStatus = !filterStatus || plan.statut === filterStatus;
-      const matchSearch = !searchTerm || 
+      const matchSearch = !searchTerm ||
         plan.vulnerabilite.titre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        plan.vulnerabilite.id.toLowerCase().includes(searchTerm.toLowerCase());
+        (plan.vulnerabilite.id && plan.vulnerabilite.id.toLowerCase().includes(searchTerm.toLowerCase()));
       return matchStatus && matchSearch;
     });
   }, [plans, filterStatus, searchTerm]);
@@ -84,8 +88,8 @@ export default function PlansCorrectionTable({
 
       if (res.ok) {
         toast.success(`✅ Statut mis à jour → ${config.label}`);
-        fetchPlans();           // Rafraîchir la table
-        onStatChange?.();       // Rafraîchir les stats
+        fetchPlans();
+        onStatChange?.();
       } else {
         toast.error("Erreur lors de la mise à jour du statut");
       }
@@ -154,7 +158,16 @@ export default function PlansCorrectionTable({
                     </span>
                   </td>
                   <td className="px-6 py-4 text-slate-300">
-                    {plan.assigneA || <span className="italic text-slate-500">Non assigné</span>}
+                    {plan.assigne ? (
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4 text-slate-400" />
+                        <span>
+                          {plan.assigne.prenom} {plan.assigne.nom}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="italic text-slate-500">-</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-slate-300">
                     {new Date(plan.dateEcheance).toLocaleDateString('fr-FR')}
@@ -166,8 +179,6 @@ export default function PlansCorrectionTable({
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex gap-2 justify-end flex-wrap">
-                      
-                      {/* Démarrer (A_FAIRE → EN_COURS) */}
                       {(plan.statut === 'A_FAIRE' || plan.statut === 'EN_RETARD') && (
                         <Button
                           variant="outline"
@@ -180,7 +191,6 @@ export default function PlansCorrectionTable({
                         </Button>
                       )}
 
-                      {/* Terminer (EN_COURS → TERMINE) */}
                       {plan.statut === 'EN_COURS' && (
                         <Button
                           variant="outline"
@@ -193,7 +203,6 @@ export default function PlansCorrectionTable({
                         </Button>
                       )}
 
-                      {/* Vérifier (TERMINE → VERIFIE) */}
                       {plan.statut === 'TERMINE' && (
                         <Button
                           variant="outline"
@@ -206,7 +215,6 @@ export default function PlansCorrectionTable({
                         </Button>
                       )}
 
-                      {/* Annuler */}
                       {plan.statut !== 'VERIFIE' && plan.statut !== 'ANNULE' && (
                         <Button
                           variant="outline"
@@ -218,7 +226,6 @@ export default function PlansCorrectionTable({
                         </Button>
                       )}
 
-                      {/* Édition */}
                       <Button
                         variant="outline"
                         size="sm"
@@ -227,7 +234,6 @@ export default function PlansCorrectionTable({
                         <Edit3 className="w-4 h-4" />
                       </Button>
 
-                      {/* Suppression */}
                       <Button
                         variant="outline"
                         size="sm"
