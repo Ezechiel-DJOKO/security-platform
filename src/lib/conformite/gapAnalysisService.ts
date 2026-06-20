@@ -1,6 +1,4 @@
-// src/lib/conformite/gapAnalysisService.ts
 import { prisma } from '@/lib/prisma';
-import { StatutConformite } from '@prisma/client';
 
 export type DomainScore = {
   domaine: string;
@@ -15,123 +13,106 @@ export type GapAnalysisResult = {
   scoreGlobal: number;
   domaines: DomainScore[];
   totalControles: number;
+  totalActifs: number;
   lastUpdated: Date;
 };
 
-// Interface pour les données accumulées par domaine
-interface DomainAccumulator {
-  domaine: string;
-  totalControles: number;
-  controlesEvalues: number;
-  controlesNonConformes: number;
-  vulnsLiees: number;
-  scoreTotal: number;
-  ponderationTotal: number;
-}
-
-// Interface pour la vulnérabilité incluse dans le contrôle
-interface VulnerabiliteIncluse {
-  niveauPertinence: number;
-}
-
-// Interface pour le contrôle avec les relations
-interface ControlConformiteWithVulns {
-  domaine: string | null;
-  statut: StatutConformite;
-  vulnerabilites: VulnerabiliteIncluse[];
-  // Ajoutez ici d'autres champs du modèle Prisma si nécessaire
-}
-
 export async function calculateGapAnalysis(): Promise<GapAnalysisResult> {
-  const controls = await prisma.controlConformite.findMany({
-    where: { referentiel: "ISO27001" },
-    include: {
-      vulnerabilites: true,
-    },
-  });
+  try {
+    const totalActifs = await prisma.actif.count();
 
-  const domainMap = new Map<string, DomainAccumulator>();
+    const controls = await prisma.controlConformite.findMany({
+      where: { referentiel: "ISO27001" },
+    });
 
-  let totalPondere = 0;
-  let scoreGlobalPondere = 0;
+    const domainMap = new Map<string, any>();
 
-  for (const ctrl of controls as ControlConformiteWithVulns[]) {
-    const domaine = ctrl.domaine || "Autres";
+    let scoreGlobalPondere = 0;
+    let totalPondere = 0;
+    let controlesEvalues = 0;
+    let controlesNonConformes = 0;
 
-    if (!domainMap.has(domaine)) {
-      domainMap.set(domaine, {
-        domaine,
-        totalControles: 0,
-        controlesEvalues: 0,
-        controlesNonConformes: 0,
-        vulnsLiees: 0,
-        scoreTotal: 0,
-        ponderationTotal: 0,
-      });
+    for (const ctrl of controls) {
+      const domaine = ctrl.domaine || "Autres";
+
+      if (!domainMap.has(domaine)) {
+        domainMap.set(domaine, {
+          domaine,
+          totalControles: 0,
+          controlesEvalues: 0,
+          controlesNonConformes: 0,
+          vulnsLiees: 0,
+          scoreTotal: 0,
+        });
+      }
+
+      const data = domainMap.get(domaine)!;
+      data.totalControles++;
+
+      // Calcul du score selon le statut
+      let controlScore = 40; // Valeur par défaut pour NON_EVALUE
+
+      switch (ctrl.statut) {
+        case "CONFORME":
+          controlScore = 100;
+          controlesEvalues++;
+          break;
+        case "PARTIELLEMENT":
+          controlScore = 65;
+          controlesEvalues++;
+          break;
+        case "NON_CONFORME":
+          controlScore = 20;
+          controlesEvalues++;
+          controlesNonConformes++;
+          break;
+        case "NON_EVALUE":
+        default:
+          controlScore = 40; // On donne un score moyen pour ne pas tout pénaliser
+          break;
+      }
+
+      data.scoreTotal += controlScore;
+      totalPondere += 10;
+      scoreGlobalPondere += controlScore * 10;
+
+      if (ctrl.statut !== "NON_EVALUE") {
+        data.controlesEvalues = (data.controlesEvalues || 0) + 1;
+      }
+      if (ctrl.statut === "NON_CONFORME" || ctrl.statut === "PARTIELLEMENT") {
+        data.controlesNonConformes = (data.controlesNonConformes || 0) + 1;
+      }
     }
 
-    const data = domainMap.get(domaine)!;
-    // Utilisation de l'opérateur nullish coalescing (??) au lieu de || pour une valeur par défaut
-    const ponderation = 10; // Valeur par défaut si le champ n'existe pas dans Prisma
+    // Transformation en tableau de domaines
+    const domaines: DomainScore[] = Array.from(domainMap.values()).map((d: any) => ({
+      domaine: d.domaine,
+      score: d.totalControles ? Math.round(d.scoreTotal / d.totalControles) : 40,
+      totalControles: d.totalControles,
+      controlesEvalues: d.controlesEvalues || 0,
+      controlesNonConformes: d.controlesNonConformes || 0,
+      vulnsLiees: d.vulnsLiees || 0,
+    }));
 
-    data.totalControles++;
-    data.ponderationTotal += ponderation;
+    const scoreGlobal = totalPondere 
+      ? Math.round(scoreGlobalPondere / totalPondere) 
+      : 45;
 
-    // Calcul du score selon statut
-    let controlScore = 100;
-    switch (ctrl.statut) {
-      case StatutConformite.NON_CONFORME:
-        controlScore = 10;
-        break;
-      case StatutConformite.PARTIELLEMENT:
-        controlScore = 50;
-        break;
-      case StatutConformite.NON_EVALUE:
-        controlScore = 35;
-        break;
-      case StatutConformite.NON_APPLICABLE:
-        controlScore = 80;
-        break;
-      case StatutConformite.CONFORME:
-      default:
-        controlScore = 100;
-    }
-
-    // Impact des vulnérabilités
-    if (ctrl.vulnerabilites.length > 0) {
-      data.vulnsLiees += ctrl.vulnerabilites.length;
-      const avgImpact = ctrl.vulnerabilites.reduce((sum: number, v: VulnerabiliteIncluse) => sum + v.niveauPertinence, 0) / ctrl.vulnerabilites.length;
-      controlScore = Math.max(5, controlScore - Math.floor(avgImpact * 0.65));
-    }
-
-    data.scoreTotal += controlScore * ponderation;
-
-    if (ctrl.statut !== StatutConformite.NON_EVALUE) {
-      data.controlesEvalues++;
-    }
-    if (ctrl.statut === StatutConformite.NON_CONFORME || ctrl.statut === StatutConformite.PARTIELLEMENT) {
-      data.controlesNonConformes++;
-    }
-
-    totalPondere += ponderation;
-    scoreGlobalPondere += controlScore * ponderation;
+    return {
+      scoreGlobal,
+      domaines: domaines.sort((a, b) => b.score - a.score),
+      totalControles: controls.length,
+      totalActifs,
+      lastUpdated: new Date(),
+    };
+  } catch (error) {
+    console.error("Erreur calculateGapAnalysis:", error);
+    return {
+      scoreGlobal: 45,
+      domaines: [],
+      totalControles: 0,
+      totalActifs: 0,
+      lastUpdated: new Date(),
+    };
   }
-
-  const domaines: DomainScore[] = Array.from(domainMap.values()).map((d: DomainAccumulator) => ({
-    domaine: d.domaine,
-    score: d.ponderationTotal ? Math.round(d.scoreTotal / d.ponderationTotal) : 0,
-    totalControles: d.totalControles,
-    controlesEvalues: d.controlesEvalues,
-    controlesNonConformes: d.controlesNonConformes,
-    vulnsLiees: d.vulnsLiees,
-  }));
-
-  const scoreGlobal = totalPondere ? Math.round(scoreGlobalPondere / totalPondere) : 0;
-
-  return {
-    scoreGlobal,
-    domaines: domaines.sort((a, b) => b.score - a.score),
-    totalControles: controls.length,
-    lastUpdated: new Date(),
-  };
 }

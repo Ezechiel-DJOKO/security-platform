@@ -35,6 +35,7 @@ interface ExportData {
     format: string;
     totalVulnerabilites: number;
     totalControles: number;
+    typeRapport: string;
   };
   vulnerabilites: Vulnerabilite[];
   controles: Controle[];
@@ -45,6 +46,8 @@ interface ExportData {
       tauxConformite: number;
       conforme: number;
       nonConforme: number;
+      totalEvalues: number;
+      totalGlobaux: number;
     };
   };
 }
@@ -56,8 +59,15 @@ export async function GET(request: NextRequest) {
   try {
     const [vulnerabilities, controles] = await Promise.all([
       prisma.vulnerabilite.findMany({
+        where: {
+          plan: {
+            statut: "VERIFIE"
+          }
+        },
         take: 100,
-        orderBy: { dateDecouverte: 'desc' },
+        orderBy: { 
+          updatedAt: 'desc' 
+        },
         select: {
           id: true,
           titre: true,
@@ -67,8 +77,9 @@ export async function GET(request: NextRequest) {
           dateDecouverte: true,
         },
       }),
+
       prisma.controlConformite.findMany({
-        take: 50,
+        take: 100,
         select: {
           id: true,
           code: true,
@@ -88,6 +99,7 @@ export async function GET(request: NextRequest) {
         format,
         totalVulnerabilites: vulnerabilities.length,
         totalControles: controles.length,
+        typeRapport: "Rapport des vulnérabilités vérifiées (Plan de Correction)",
       },
       vulnerabilites: vulnerabilities,
       controles,
@@ -113,19 +125,13 @@ export async function GET(request: NextRequest) {
 function generateRecommendations(vulnerabilities: any[], controles: any[]) {
   const recs: Recommandation[] = [];
 
-  const criticalVulns = vulnerabilities.filter(v =>
-    v.severite === 'CRITICAL' || (v.scoreCVSS && v.scoreCVSS >= 9.0)
-  );
-
-  if (criticalVulns.length > 0) {
-    recs.push({
-      priorite: "HAUTE",
-      titre: `Corriger les ${criticalVulns.length} vulnérabilités critiques`,
-      description: "Ces vulnérabilités peuvent être exploitées à distance.",
-      action: "Appliquer les patches immédiatement + analyse approfondie.",
-      delai: "Sous 48 heures"
-    });
-  }
+  recs.push({
+    priorite: "BASSE",
+    titre: `Suivi des ${vulnerabilities.length} vulnérabilités vérifiées`,
+    description: "Ces vulnérabilités ont été validées dans le plan de correction.",
+    action: "Maintenir une surveillance régulière et programmer des scans périodiques.",
+    delai: "Ongoing"
+  });
 
   const nonConformes = controles.filter(c => c.statut === 'NON_CONFORME');
   if (nonConformes.length > 0) {
@@ -133,18 +139,10 @@ function generateRecommendations(vulnerabilities: any[], controles: any[]) {
       priorite: "MOYENNE",
       titre: "Améliorer le taux de conformité",
       description: `${nonConformes.length} contrôles ne sont pas conformes.`,
-      action: "Définir un plan de remédiation ISO 27001.",
+      action: "Définir un plan de remédiation.",
       delai: "Sous 15 jours"
     });
   }
-
-  recs.push({
-    priorite: "BASSE",
-    titre: "Mettre en place une revue mensuelle",
-    description: "Automatiser les scans et générer des rapports périodiques.",
-    action: "Planifier un scan complet tous les 15 jours.",
-    delai: "Ongoing"
-  });
 
   return recs;
 }
@@ -158,20 +156,30 @@ function groupBySeverity(vulns: any[]) {
   return stats;
 }
 
+// ✅ Amélioration du calcul de conformité
 function calculateConformite(controles: any[]) {
-  const total = controles.length;
-  const conforme = controles.filter(c => c.statut === 'CONFORME').length;
+  const controlesEvalues = controles.filter(c => 
+    c.statut && 
+    c.statut !== 'NON_EVALUE' && 
+    c.statut !== 'NON_EVAL' 
+  );
+
+  const total = controlesEvalues.length;
+  const conforme = controlesEvalues.filter(c => c.statut === 'CONFORME').length;
+  const nonConforme = total - conforme;
+
   return {
     tauxConformite: total ? Math.round((conforme / total) * 100) : 0,
     conforme,
-    nonConforme: total - conforme,
+    nonConforme,
+    totalEvalues: total,
+    totalGlobaux: controles.length
   };
 }
 
 // ================== EXPORTS ==================
 function exportExcel(data: ExportData) {
   const wb = XLSX.utils.book_new();
-
   const vulnsData = data.vulnerabilites.map(v => ({
     ID: v.id,
     Titre: v.titre,
@@ -181,7 +189,7 @@ function exportExcel(data: ExportData) {
     "Date Découverte": v.dateDecouverte ? new Date(v.dateDecouverte).toLocaleDateString('fr-FR') : '',
   }));
 
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vulnsData), "Vulnérabilités");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vulnsData), "Vulnérabilités Vérifiées");
 
   const conformiteData = data.controles.map(c => ({
     Code: c.code,
@@ -189,16 +197,15 @@ function exportExcel(data: ExportData) {
     Referentiel: c.referentiel,
     Statut: c.statut,
   }));
-
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(conformiteData), "Conformité");
 
   const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
 
-  return new NextResponse(buffer as any, {  // Correction ici
+  return new NextResponse(buffer as any, {
     status: 200,
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename="rapport-securite-${new Date().toISOString().slice(0,10)}.xlsx"`,
+      'Content-Disposition': `attachment; filename="rapport-verifiees-${new Date().toISOString().slice(0,10)}.xlsx"`,
     },
   });
 }
@@ -220,11 +227,11 @@ async function exportPDF(data: ExportData) {
       margin: { top: 40, right: 40, bottom: 40, left: 40 },
     });
 
-    return new NextResponse(pdfBuffer as any, {  // Correction ici
+    return new NextResponse(pdfBuffer as any, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="rapport-securite-${new Date().toISOString().slice(0,10)}.pdf"`,
+        'Content-Disposition': `attachment; filename="rapport-verifiees-${new Date().toISOString().slice(0,10)}.pdf"`,
       },
     });
   } finally {
@@ -245,12 +252,14 @@ function generatePDFHTML(data: ExportData) {
     </tr>
   `).join('');
 
+  const conf = data.statistiques.conformite;
+
   return `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>Rapport de Sécurité</title>
+      <title>Rapport des Vulnérabilités Vérifiées</title>
       <style>
         body { font-family: Arial, sans-serif; margin: 40px; color: #111; line-height: 1.6; }
         h1 { color: #1e40af; text-align: center; }
@@ -261,28 +270,31 @@ function generatePDFHTML(data: ExportData) {
       </style>
     </head>
     <body>
-      <h1>Rapport de Sécurité</h1>
+      <h1>Rapport des Vulnérabilités Vérifiées</h1>
       <p><strong>Généré le :</strong> ${new Date().toLocaleDateString('fr-FR')}</p>
-      <h2>Synthèse</h2>
-      <p><strong>Total Vulnérabilités :</strong> ${data.metadata.totalVulnerabilites}</p>
-      <p><strong>Taux de Conformité :</strong> ${data.statistiques.conformite.tauxConformite}%</p>
       
-      <h2>Recommandations Prioritaires</h2>
+      <h2>Synthèse</h2>
+      <p><strong>Total Vulnérabilités Vérifiées :</strong> ${data.metadata.totalVulnerabilites}</p>
+      <p><strong>Taux de Conformité :</strong> ${conf.tauxConformite}% 
+         (${conf.conforme} conformes / ${conf.totalEvalues} évalués)</p>
+      <p><strong>Contrôles totaux :</strong> ${conf.totalGlobaux}</p>
+
+      <h2>Recommandations</h2>
       <table>
         <tr><th>Priorité</th><th>Titre</th><th>Description</th><th>Action</th><th>Délai</th></tr>
         ${recsHTML}
       </table>
 
-      <h2>Vulnérabilités Récentes</h2>
+      <h2>Vulnérabilités Vérifiées</h2>
       <table>
-        <tr><th>ID</th><th>Titre</th><th>Sévérité</th><th>Score CVSS</th><th>Statut</th></tr>
+        <tr><th>ID</th><th>Titre</th><th>Sévérité</th><th>Score CVSS</th><th>Date Découverte</th></tr>
         ${data.vulnerabilites.slice(0, 10).map(v => `
           <tr>
             <td>${v.id}</td>
             <td>${v.titre}</td>
             <td>${v.severite}</td>
             <td>${v.scoreCVSS || 'N/A'}</td>
-            <td>${v.statut}</td>
+            <td>${v.dateDecouverte ? new Date(v.dateDecouverte).toLocaleDateString('fr-FR') : ''}</td>
           </tr>
         `).join('')}
       </table>

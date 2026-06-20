@@ -1,5 +1,4 @@
 'use client';
-
 import { ShieldCheck, RefreshCw } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState, useCallback } from 'react';
@@ -18,6 +17,7 @@ type GapAnalysisResult = {
   scoreGlobal: number;
   domaines: DomainScore[];
   totalControles: number;
+  totalActifs: number;
   lastUpdated: string;
 };
 
@@ -40,8 +40,11 @@ export default function ConformiteContent() {
 
       if (!res.ok) throw new Error('Impossible de charger les données');
 
-      const data = await res.json();
-      setAnalysis(data);
+      const response = await res.json();
+
+      // ✅ Correction importante : l'API renvoie les données dans response.data
+      const analysisData = response.data || response;
+      setAnalysis(analysisData);
     } catch (err: any) {
       setError(err.message || "Erreur lors du chargement de l'analyse");
     } finally {
@@ -83,7 +86,7 @@ export default function ConformiteContent() {
     return (
       <div className="text-red-500 text-center py-12">
         {error}
-        <button 
+        <button
           onClick={handleRefresh}
           className="mt-4 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 rounded-lg text-red-400"
         >
@@ -103,7 +106,7 @@ export default function ConformiteContent() {
           <p className="text-slate-400 mt-2">Évaluation de la conformité par domaine</p>
         </div>
         <Button
-          onClick={handleRefresh} 
+          onClick={handleRefresh}
           disabled={refreshing}
           variant="outline"
           className="flex items-center gap-2"
@@ -118,17 +121,18 @@ export default function ConformiteContent() {
         <div className="text-8xl font-bold text-white mb-2">{globalScore}%</div>
         <p className="text-2xl font-semibold text-emerald-400">Niveau de Conformité Global</p>
         <p className="text-slate-400 mt-3">
-          Basé sur {analysis?.totalControles} contrôles • 
-          {analysis?.lastUpdated 
-            ? new Date(analysis.lastUpdated).toLocaleDateString('fr-FR') 
-            : 'Date non disponible'}
+          Basé sur {analysis?.totalControles || 0} contrôles •{' '}
+          {analysis?.totalActifs || 0} actifs surveillés
         </p>
       </div>
 
       {/* Scores par Domaine */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {analysis?.domaines?.map((domaine, i) => (
-          <div key={i} className="bg-slate-950 border border-slate-800 rounded-3xl p-6 hover:border-slate-600 transition-all">
+          <div
+            key={i}
+            className="bg-slate-950 border border-slate-800 rounded-3xl p-6 hover:border-slate-600 transition-all"
+          >
             <div className="flex justify-between items-start mb-4">
               <h3 className="font-semibold text-lg text-white">{domaine.domaine}</h3>
               <ShieldCheck className="w-8 h-8 text-emerald-500" />
