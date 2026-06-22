@@ -25,10 +25,10 @@ export async function GET() {
             severite: true,
             scoreCVSS: true,
             cveId: true,
-            statut: true,           // Important pour cohérence
+            statut: true,
           }
         },
-        assigne: {
+        assigne: {                    // ← Relation correcte
           select: {
             id: true,
             nom: true,
@@ -42,13 +42,12 @@ export async function GET() {
       },
     });
 
-    // Calcul du retard + statut affiché
+    // Calcul du retard
     const plansAvecRetard = plans.map(plan => {
       const now = new Date();
       const dateEcheance = new Date(plan.dateEcheance);
-      
       const estEnRetard = 
-        !['TERMINE', 'VERIFIE', 'ANNULE'].includes(plan.statut) &&
+        !['TERMINE', 'VERIFIE', 'ANNULE'].includes(plan.statut) && 
         dateEcheance < now;
 
       return {
@@ -59,6 +58,7 @@ export async function GET() {
     });
 
     return NextResponse.json({
+      success: true,
       data: plansAvecRetard,
       count: plansAvecRetard.length
     });
@@ -66,13 +66,13 @@ export async function GET() {
   } catch (error) {
     console.error("Erreur GET /api/plans-correction:", error);
     return NextResponse.json(
-      { error: "Erreur serveur lors de la récupération des plans" },
+      { success: false, error: "Erreur serveur lors de la récupération des plans" },
       { status: 500 }
     );
   }
 }
 
-// POST - Création d'un plan (lors de l'assignation)
+// POST - Création d'un plan de correction (lors de l'assignation d'une vulnérabilité)
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -85,39 +85,44 @@ export async function POST(request: Request) {
     const plan = await prisma.planCorrection.create({
       data: {
         idVulnerabilite: body.idVulnerabilite,
-        assigneA: body.assigneA,
+        assigneA: body.assigneA,           // ← Important : correspond à ton modèle Prisma
         priorite: body.priorite || 'MOYENNE',
         dateEcheance: new Date(body.dateEcheance),
         statut: body.statut || StatutPlan.A_FAIRE,
         commentaire: body.commentaire || undefined,
       },
       include: {
-        vulnerabilite: { 
-          select: { 
-            id: true, 
-            titre: true, 
-            severite: true, 
-            scoreCVSS: true, 
+        vulnerabilite: {
+          select: {
+            id: true,
+            titre: true,
+            severite: true,
+            scoreCVSS: true,
             cveId: true,
-            statut: true 
-          } 
+            statut: true
+          }
         },
-        assigne: { 
-          select: { 
-            id: true, 
-            nom: true, 
-            prenom: true, 
-            email: true 
-          } 
+        assigne: {                         // ← Important pour le frontend
+          select: {
+            id: true,
+            nom: true,
+            prenom: true,
+            email: true
+          }
         }
       }
     });
 
-    return NextResponse.json(plan, { status: 201 });
+    return NextResponse.json({
+      success: true,
+      data: plan
+    }, { status: 201 });
+
   } catch (error) {
     console.error("Erreur POST /api/plans-correction:", error);
-    return NextResponse.json({ 
-      error: "Erreur serveur lors de la création du plan" 
+    return NextResponse.json({
+      success: false,
+      error: "Erreur serveur lors de la création du plan"
     }, { status: 500 });
   }
 }

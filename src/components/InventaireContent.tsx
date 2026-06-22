@@ -55,8 +55,21 @@ export default function InventaireContent() {
     }
   }, [searchTerm, filterCriticite]);
 
+  // Use effect with proper mount/unmount handling
   useEffect(() => {
-    fetchActifs();
+    let isMounted = true;
+    
+    const loadActifs = async () => {
+      if (isMounted) {
+        await fetchActifs();
+      }
+    };
+    
+    loadActifs();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [fetchActifs]);
 
   const handleCreateOrUpdate = async (data: ActifFormData) => {
@@ -71,7 +84,7 @@ export default function InventaireContent() {
       });
 
       if (res.ok) {
-        fetchActifs();
+        await fetchActifs();
         alert(editingActif ? "Actif modifié avec succès !" : "Actif créé avec succès !");
         setIsModalOpen(false);
         setEditingActif(null);
@@ -96,7 +109,7 @@ export default function InventaireContent() {
       });
 
       if (res.ok) {
-        fetchActifs();
+        await fetchActifs();
         alert("Actif supprimé avec succès");
       } else {
         alert("Erreur lors de la suppression");
@@ -162,7 +175,7 @@ export default function InventaireContent() {
           data={actifs}
           columns={[
             { accessor: 'id', header: 'ID' },
-            { accessor: 'nom', header: "Nom de l'Actif" },
+            { accessor: 'nom', header: "Nom de l'actif" },
             { accessor: 'type', header: 'Type' },
             { accessor: 'adresseIP', header: 'Adresse IP' },
             {
@@ -176,12 +189,14 @@ export default function InventaireContent() {
                   <button
                     onClick={() => { setEditingActif(actif); setIsModalOpen(true); }}
                     className="p-2 hover:bg-slate-800 rounded-xl text-blue-400 hover:text-blue-500 transition-colors"
+                    aria-label="Modifier l'actif"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(actif.id)}
                     className="p-2 hover:bg-slate-800 rounded-xl text-red-400 hover:text-red-500 transition-colors"
+                    aria-label="Supprimer l'actif"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

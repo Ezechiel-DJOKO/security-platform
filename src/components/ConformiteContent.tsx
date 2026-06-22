@@ -1,7 +1,7 @@
 'use client';
 import { ShieldCheck, RefreshCw } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Button } from './ui/button';
 
 type DomainScore = {
@@ -21,14 +21,22 @@ type GapAnalysisResult = {
   lastUpdated: string;
 };
 
+// Define proper error type
+interface FetchError extends Error {
+  message: string;
+}
+
 export default function ConformiteContent() {
   const { data: session, status } = useSession();
   const [analysis, setAnalysis] = useState<GapAnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const isMountedRef = useRef(true);
 
   const loadGapAnalysis = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    
     try {
       setError(null);
       if (refreshing) setRefreshing(true);
@@ -44,21 +52,42 @@ export default function ConformiteContent() {
 
       // ✅ Correction importante : l'API renvoie les données dans response.data
       const analysisData = response.data || response;
-      setAnalysis(analysisData);
-    } catch (err: any) {
-      setError(err.message || "Erreur lors du chargement de l'analyse");
+      
+      // Only update state if component is still mounted
+      if (isMountedRef.current) {
+        setAnalysis(analysisData);
+        setLoading(false);
+      }
+    } catch (err) {
+      const fetchError = err as FetchError;
+      if (isMountedRef.current) {
+        setError(fetchError.message || "Erreur lors du chargement de l'analyse");
+        setLoading(false);
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isMountedRef.current) {
+        setRefreshing(false);
+      }
     }
   }, [refreshing]);
 
+  // Chargement initial avec gestion du montage
   useEffect(() => {
-    if (session) {
-      loadGapAnalysis();
-    } else {
-      setLoading(false);
-    }
+    isMountedRef.current = true;
+    
+    const loadData = async () => {
+      if (session && isMountedRef.current) {
+        await loadGapAnalysis();
+      } else if (isMountedRef.current) {
+        setLoading(false);
+      }
+    };
+    
+    loadData();
+    
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [session, loadGapAnalysis]);
 
   const handleRefresh = () => {
@@ -69,7 +98,7 @@ export default function ConformiteContent() {
   if (status === "loading" || loading) {
     return (
       <div className="flex items-center justify-center h-96 text-slate-400">
-        Calcul de l'analyse Gap ISO 27001 en cours...
+        Calcul de l&apos;analyse Gap ISO 27001 en cours...
       </div>
     );
   }

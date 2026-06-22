@@ -17,6 +17,16 @@ export type GapAnalysisResult = {
   lastUpdated: Date;
 };
 
+// Define proper types
+interface DomainData {
+  domaine: string;
+  totalControles: number;
+  controlesEvalues: number;
+  controlesNonConformes: number;
+  vulnsLiees: number;
+  scoreTotal: number;
+}
+
 export async function calculateGapAnalysis(): Promise<GapAnalysisResult> {
   try {
     const totalActifs = await prisma.actif.count();
@@ -25,12 +35,10 @@ export async function calculateGapAnalysis(): Promise<GapAnalysisResult> {
       where: { referentiel: "ISO27001" },
     });
 
-    const domainMap = new Map<string, any>();
+    const domainMap = new Map<string, DomainData>();
 
     let scoreGlobalPondere = 0;
     let totalPondere = 0;
-    let controlesEvalues = 0;
-    let controlesNonConformes = 0;
 
     for (const ctrl of controls) {
       const domaine = ctrl.domaine || "Autres";
@@ -55,16 +63,16 @@ export async function calculateGapAnalysis(): Promise<GapAnalysisResult> {
       switch (ctrl.statut) {
         case "CONFORME":
           controlScore = 100;
-          controlesEvalues++;
+          data.controlesEvalues++;
           break;
         case "PARTIELLEMENT":
           controlScore = 65;
-          controlesEvalues++;
+          data.controlesEvalues++;
           break;
         case "NON_CONFORME":
           controlScore = 20;
-          controlesEvalues++;
-          controlesNonConformes++;
+          data.controlesEvalues++;
+          data.controlesNonConformes++;
           break;
         case "NON_EVALUE":
         default:
@@ -75,17 +83,10 @@ export async function calculateGapAnalysis(): Promise<GapAnalysisResult> {
       data.scoreTotal += controlScore;
       totalPondere += 10;
       scoreGlobalPondere += controlScore * 10;
-
-      if (ctrl.statut !== "NON_EVALUE") {
-        data.controlesEvalues = (data.controlesEvalues || 0) + 1;
-      }
-      if (ctrl.statut === "NON_CONFORME" || ctrl.statut === "PARTIELLEMENT") {
-        data.controlesNonConformes = (data.controlesNonConformes || 0) + 1;
-      }
     }
 
     // Transformation en tableau de domaines
-    const domaines: DomainScore[] = Array.from(domainMap.values()).map((d: any) => ({
+    const domaines: DomainScore[] = Array.from(domainMap.values()).map((d: DomainData) => ({
       domaine: d.domaine,
       score: d.totalControles ? Math.round(d.scoreTotal / d.totalControles) : 40,
       totalControles: d.totalControles,

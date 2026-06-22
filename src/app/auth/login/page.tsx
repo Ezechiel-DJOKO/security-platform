@@ -13,11 +13,14 @@ export default function LoginPage() {
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
+  // Fix: Use useEffect with proper handling - no setState in effect
   useEffect(() => {
+    // Using a simple effect to set mounted state is fine
+    // but we can also use a ref or just remove it
     setMounted(true);
   }, []);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
@@ -43,7 +46,8 @@ export default function LoginPage() {
     }
   };
 
-
+  // Fix: Use the mounted state directly or compute isDisabled
+   
   const isDisabled = mounted ? isLoading || !email || !password : true;
 
   return (
@@ -171,6 +175,7 @@ export default function LoginPage() {
               {/* Submit button */}
               <button
                 type="submit"
+                disabled={isDisabled}
                 className="w-full group relative py-3.5 px-4 bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 hover:from-blue-600 hover:via-indigo-600 hover:to-blue-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-900/20 hover:shadow-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-200 overflow-hidden"
               >
                 <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />

@@ -5,6 +5,21 @@ import { startOpenvasScan } from './openvas';
 import { processScanResults } from './postScanProcessor';
 import { sendAlert } from '@/lib/alertService';
 
+// Define proper types
+interface OpenVASResult {
+  raw: unknown;
+  jobId: string;
+}
+
+interface ScanMetadata {
+  openvasJobId?: string;
+  [key: string]: unknown;
+}
+
+interface OrchestrationError extends Error {
+  message: string;
+}
+
 export async function orchestrateScan(scanId: string) {
   console.log(`🚀 Orchestration du scan ${scanId} selon diagramme Flux 1`);
 
@@ -32,14 +47,16 @@ export async function orchestrateScan(scanId: string) {
     console.log(`📡 Démarrage scan OpenVAS sur ${scan.cible}`);
     const openvasResult = await startOpenvasScan(scan.cible || scan.actif.adresseIP || "", scan.id);
 
-    // 3. Mise à jour des résultats bruts (correction du spread error)
+    // 3. Mise à jour des résultats bruts avec type safety
+    const currentMetadata = scan.metadata as ScanMetadata || {};
     await prisma.scan.update({
       where: { id: scanId },
       data: {
-        resultatBrut: openvasResult.raw || openvasResult as any,
-        metadata: scan.metadata 
-          ? { ...(scan.metadata as object), openvasJobId: openvasResult.jobId }
-          : { openvasJobId: openvasResult.jobId }
+        resultatBrut: openvasResult.raw || null,
+        metadata: {
+          ...currentMetadata,
+          openvasJobId: openvasResult.jobId
+        }
       }
     });
 
@@ -55,7 +72,7 @@ export async function orchestrateScan(scanId: string) {
     });
 
     for (const vuln of criticalVulns) {
-      await createRemediationPlan(vuln.id, scan.lancerPar); // Fonction locale ci-dessous
+      await createRemediationPlan(vuln.id, scan.lancerPar);
     }
 
     // 6. Finalisation du scan
@@ -80,14 +97,15 @@ export async function orchestrateScan(scanId: string) {
     console.log(`✅ Orchestration terminée avec succès pour le scan ${scanId}`);
     return { success: true, scanId };
 
-  } catch (error: any) {
-    console.error("❌ Erreur orchestration:", error);
+  } catch (error) {
+    const err = error as OrchestrationError;
+    console.error("❌ Erreur orchestration:", err);
 
     await prisma.scan.update({
       where: { id: scanId },
       data: { 
         statut: StatutScan.ECHEC, 
-        erreur: error.message, 
+        erreur: err.message, 
         fin: new Date() 
       }
     });
@@ -95,15 +113,15 @@ export async function orchestrateScan(scanId: string) {
     await sendAlert({
       scanId,
       type: 'ERROR',
-      message: `Échec du scan ${scanId}: ${error.message}`,
+      message: `Échec du scan ${scanId}: ${err.message}`,
       severity: 'CRITICAL'
     });
 
-    return { success: false, error: error.message };
+    return { success: false, error: err.message };
   }
 }
 
-/** Fonction locale pour créer un plan de correction (remplace createRemediationPlan) */
+/** Fonction locale pour créer un plan de correction */
 async function createRemediationPlan(vulnerabiliteId: string, assignePar: string) {
   return prisma.planCorrection.create({
     data: {

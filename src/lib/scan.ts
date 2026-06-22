@@ -8,6 +8,35 @@ import { broadcastScanCompleted } from './sse';
 
 const execAsync = promisify(exec);
 
+// Define proper types
+interface PythonScanResult {
+  status: string;
+  data: PythonVulnerability[];
+}
+
+interface PythonVulnerability {
+  cveId?: string;
+  cve?: string;
+  titre?: string;
+  name?: string;
+  description?: string;
+  severite?: string;
+  severity?: string;
+  scoreCVSS?: number;
+  cvss?: number;
+  vecteurCVSS?: string;
+  vector?: string;
+  preuve?: string;
+  recommandation?: string;
+  solution?: string;
+  impact?: string;
+  threat?: string;
+}
+
+interface ScanError extends Error {
+  message: string;
+}
+
 // ==================== TRIGGER SCAN ====================
 export async function triggerScanBackground(scanId: string) {
   console.log(`[SCAN START] Début du scan ${scanId}`);
@@ -35,27 +64,28 @@ export async function triggerScanBackground(scanId: string) {
     if (stdout) console.log(`[Python stdout]: ${stdout}`);
 
     // === NOUVEAU : Parsing du résultat Python ===
-    const pythonResult = JSON.parse(stdout.trim());
+    const pythonResult: PythonScanResult = JSON.parse(stdout.trim());
     
     if (pythonResult.status === "success" && pythonResult.data) {
-      await saveVulnerabilitiesFromPython(scanId, pythonResult.data, outil);
+      await saveVulnerabilitiesFromPython(scanId, pythonResult.data);
     }
 
     await postScanProcessing(scanId);
 
     return { success: true, scanId };
-  } catch (error: any) {
-    console.error(`❌ Erreur lors du scan ${scanId}:`, error);
+  } catch (error) {
+    const err = error as ScanError;
+    console.error(`❌ Erreur lors du scan ${scanId}:`, err);
     await prisma.scan.update({
       where: { id: scanId },
-      data: { statut: StatutScan.ECHEC, fin: new Date(), erreur: error.message }
+      data: { statut: StatutScan.ECHEC, fin: new Date(), erreur: err.message }
     });
     throw error;
   }
 }
 
 // ==================== SAUVEGARDE VULNÉRABILITÉS ====================
-async function saveVulnerabilitiesFromPython(scanId: string, data: any[], outil: string) {
+async function saveVulnerabilitiesFromPython(scanId: string, data: PythonVulnerability[]) {
   console.log(`📥 Enregistrement de ${data.length} vulnérabilités pour le scan ${scanId}`);
 
   for (const item of data) {
@@ -163,7 +193,7 @@ async function sendScanCompletionAlert(scanId: string) {
 
     await prisma.auditLog.create({
       data: {
-        action: 'SCAN_COMPLETED' as any,
+        action: 'SCAN_COMPLETED',
         entite: 'SCAN',
         idEntite: scanId,
         details: {

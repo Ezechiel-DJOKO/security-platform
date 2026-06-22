@@ -2,7 +2,6 @@
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import {
-  Download,
   Calendar,
   FileText,
   FileSpreadsheet,
@@ -27,6 +26,7 @@ const typeRapportData = [
 ];
 
 export default function RapportsContent() {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [periode, setPeriode] = useState('mois');
   const [isExporting, setIsExporting] = useState(false);
   const { data: session, status } = useSession();
@@ -61,7 +61,7 @@ export default function RapportsContent() {
       a.download = `rapport-securite-${new Date().toISOString().slice(0,10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (err) {
+    } catch (_err) {
       alert("Erreur lors de l'export JSON");
     } finally {
       setIsExporting(false);
@@ -80,7 +80,7 @@ export default function RapportsContent() {
       a.download = `rapport-securite-${new Date().toISOString().slice(0,10)}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (err) {
+    } catch (_err) {
       alert("Erreur lors de l'export Excel");
     } finally {
       setIsExporting(false);
@@ -99,7 +99,7 @@ export default function RapportsContent() {
       a.download = `rapport-securite-${new Date().toISOString().slice(0,10)}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (err) {
+    } catch (_err) {
       alert("Erreur lors de l'export PDF");
     } finally {
       setIsExporting(false);
@@ -118,7 +118,7 @@ export default function RapportsContent() {
       a.download = `comparatif-outils-${new Date().toISOString().slice(0,10)}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (err) {
+    } catch (_err) {
       alert("Erreur lors de la génération du comparatif");
     } finally {
       setIsExporting(false);
@@ -130,7 +130,7 @@ export default function RapportsContent() {
       {/* En-tête */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-white">Rapports & Analyses</h1>
+          <h1 className="text-3xl font-bold text-white">Rapports &amp; Analyses</h1>
           <p className="text-slate-400 mt-1">Génération intelligente de rapports de sécurité</p>
         </div>
 

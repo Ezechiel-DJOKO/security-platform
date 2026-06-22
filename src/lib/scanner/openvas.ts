@@ -11,7 +11,8 @@ export async function startOpenvasScan(target: string, scanId: string) {
   // Simulation / appel réel selon ton environnement
   try {
     // Exemple avec omp (OpenVAS Management Protocol) ou script Python
-    const { stdout } = await execAsync(`python3 python-scanner/scan.py --tool=openvas --target=${target} --scan-id=${scanId}`);
+    // stdout is intentionally not used as we only need the result file
+    const { stdout: _stdout } = await execAsync(`python3 python-scanner/scan.py --tool=openvas --target=${target} --scan-id=${scanId}`);
 
     const resultPath = `rapports/rapport_openvas_${scanId}.json`;
     const rawData = await fs.readFile(resultPath, 'utf-8');

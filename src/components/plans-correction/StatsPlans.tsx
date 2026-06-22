@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { 
   ClipboardList, 
   Clock, 
@@ -23,6 +23,19 @@ interface StatsPlansProps {
   onRefresh?: () => void;
 }
 
+// Define the card data outside the component for better performance
+const STAT_CARDS = [
+  { key: 'A_FAIRE' as const, label: "À faire", color: "text-slate-400", icon: ClipboardList },
+  { key: 'EN_COURS' as const, label: "En cours", color: "text-blue-400", icon: Clock },
+  { key: 'TERMINE' as const, label: "Terminés", color: "text-green-400", icon: CheckCircle },
+  { key: 'VERIFIE' as const, label: "Vérifiés", color: "text-emerald-400", icon: Eye },
+  { key: 'ANNULE' as const, label: "Annulés", color: "text-gray-400", icon: XCircle },
+  { key: 'EN_RETARD' as const, label: "En retard", color: "text-red-400", icon: AlertTriangle },
+] as const;
+
+// Define the type for stat keys
+type StatKey = typeof STAT_CARDS[number]['key'];
+
 export default function StatsPlans({ onRefresh }: StatsPlansProps) {
   const [stats, setStats] = useState<Stats>({
     TOTAL: 0,
@@ -35,7 +48,8 @@ export default function StatsPlans({ onRefresh }: StatsPlansProps) {
   });
   const [loading, setLoading] = useState(true);
 
-  const fetchStats = async () => {
+  // Use useCallback to memoize the fetch function
+  const fetchStats = useCallback(async () => {
     try {
       const res = await fetch('/api/plans-correction/stats', {
         cache: 'no-store',
@@ -50,67 +64,78 @@ export default function StatsPlans({ onRefresh }: StatsPlansProps) {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchStats();
   }, []);
 
+  // Initial fetch on mount
   useEffect(() => {
-    if (onRefresh) {
-      fetchStats();
-    }
-  }, [onRefresh]);
+    let isMounted = true;
+    
+    const loadStats = async () => {
+      if (isMounted) {
+        await fetchStats();
+      }
+    };
+    
+    loadStats();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchStats]);
 
-  const cards = [
-    { 
-      key: 'A_FAIRE', 
-      label: "À faire", 
-      value: stats.A_FAIRE, 
-      color: "text-slate-400",
-      icon: ClipboardList 
-    },
-    { 
-      key: 'EN_COURS', 
-      label: "En cours", 
-      value: stats.EN_COURS, 
-      color: "text-blue-400",
-      icon: Clock 
-    },
-    { 
-      key: 'TERMINE', 
-      label: "Terminés", 
-      value: stats.TERMINE, 
-      color: "text-green-400",
-      icon: CheckCircle 
-    },
-    { 
-      key: 'VERIFIE', 
-      label: "Vérifiés", 
-      value: stats.VERIFIE, 
-      color: "text-emerald-400",
-      icon: Eye 
-    },
-    { 
-      key: 'ANNULE', 
-      label: "Annulés", 
-      value: stats.ANNULE, 
-      color: "text-gray-400",
-      icon: XCircle 
-    },
-    { 
-      key: 'EN_RETARD', 
-      label: "En retard", 
-      value: stats.EN_RETARD, 
-      color: "text-red-400",
-      icon: AlertTriangle 
-    },
-  ];
+  // Handle refresh callback
+  useEffect(() => {
+    let isMounted = true;
+    
+    if (onRefresh) {
+      const refreshStats = async () => {
+        if (isMounted) {
+          await fetchStats();
+        }
+      };
+      
+      refreshStats();
+    }
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [onRefresh, fetchStats]);
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        {STAT_CARDS.map((card) => {
+          const Icon = card.icon;
+          return (
+            <div 
+              key={card.key} 
+              className="bg-slate-900 border border-slate-800 rounded-2xl p-6 animate-pulse"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="h-4 bg-slate-800 rounded w-20 mb-3"></div>
+                  <div className="h-10 bg-slate-800 rounded w-12"></div>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-800/50">
+                  <Icon className={`w-9 h-9 ${card.color}`} strokeWidth={2} />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-      {cards.map((card) => {
+      {STAT_CARDS.map((card) => {
         const Icon = card.icon;
+        // Type-safe access to stats
+        const value = stats[card.key as StatKey];
+        
         return (
           <div 
             key={card.key} 
@@ -120,7 +145,7 @@ export default function StatsPlans({ onRefresh }: StatsPlansProps) {
               <div>
                 <p className="text-slate-400 text-sm">{card.label}</p>
                 <p className="text-4xl font-bold text-white mt-3">
-                  {loading ? '...' : card.value}
+                  {value}
                 </p>
               </div>
               <div className={`p-3 rounded-xl bg-slate-800/50 group-hover:bg-slate-800 transition-colors`}>

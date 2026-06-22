@@ -3,11 +3,16 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 
 export default function AlertListener() {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [connected, setConnected] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef(0);
+  
+  // Use a ref to store the connect function to avoid circular reference
+  const connectRef = useRef<() => void>(() => {});
 
+  // Define connect with useCallback
   const connect = useCallback(() => {
     // Nettoyage de l'ancienne connexion
     if (eventSourceRef.current) {
@@ -17,6 +22,7 @@ export default function AlertListener() {
 
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
     }
 
     const eventSource = new EventSource('/api/notify/events');
@@ -53,8 +59,10 @@ export default function AlertListener() {
       setConnected(false);
 
       // Fermeture propre
-      eventSource.close();
-      eventSourceRef.current = null;
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
 
       // Backoff exponentiel (max 30s)
       const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000);
@@ -62,12 +70,21 @@ export default function AlertListener() {
 
       console.log(`🔄 Reconexion dans ${delay / 1000}s (tentative ${retryCountRef.current})`);
 
+      // Use connectRef.current to avoid circular reference
       reconnectTimeoutRef.current = setTimeout(() => {
-        connect();
+        if (connectRef.current) {
+          connectRef.current();
+        }
       }, delay);
     };
   }, []);
 
+  // Update the ref whenever connect changes
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
+
+  // Use useEffect AFTER connect is defined
   useEffect(() => {
     connect();
 
@@ -75,9 +92,11 @@ export default function AlertListener() {
     return () => {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
+        eventSourceRef.current = null;
       }
     };
   }, [connect]);

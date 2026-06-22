@@ -111,7 +111,7 @@ model Vulnerabilite {
 model PlanCorrection {
   id              String        @id @default(uuid()) @db.Uuid
   idVulnerabilite String        @unique @db.Uuid
-  assigneA        String        @db.Uuid
+  assigneA        String?        @db.Uuid
   priorite        Priorite
   dateEcheance    DateTime
   statut          StatutPlan    @default(A_FAIRE)
@@ -119,7 +119,7 @@ model PlanCorrection {
   dateResolution  DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
-  assigne         Utilisateur   @relation("PlanAssigneA", fields: [assigneA], references: [id])
+  assigne         Utilisateur?   @relation("PlanAssigneA", fields: [assigneA], references: [id])
   vulnerabilite   Vulnerabilite @relation(fields: [idVulnerabilite], references: [id], onDelete: Cascade)
 
   @@map("plans_correction")

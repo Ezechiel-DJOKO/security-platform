@@ -27,7 +27,7 @@ export default function ConformitePage() {
         <Suspense
           fallback={
             <div className="flex items-center justify-center h-96">
-              <p className="text-slate-400">Calcul de l'analyse Gap ISO 27001 en cours...</p>
+              <p className="text-slate-400">Calcul de l&apos;analyse Gap ISO 27001 en cours...</p>
             </div>
           }
         >
