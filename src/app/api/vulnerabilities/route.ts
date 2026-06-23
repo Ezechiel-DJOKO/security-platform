@@ -39,6 +39,7 @@ function calculateRisqueRelatif(scoreCVSS: number | null, epssScore: number | nu
 }
 
 // ====================== GET ======================
+// ====================== GET ======================
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -46,12 +47,15 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
+  
+  // === NOUVEAU : Récupérer TOUTES les vulnérabilités pour le modal ===
+  const fetchAll = searchParams.get('all') === 'true';
+
   const page = parseInt(searchParams.get('page') || '1');
   const limit = parseInt(searchParams.get('limit') || '20');
   const skip = (page - 1) * limit;
 
-  const assigneA = searchParams.get('assigneA'); // "me" ou un ID
-
+  const assigneA = searchParams.get('assigneA');
   const where: Prisma.VulnerabiliteWhereInput = {
     deletedAt: null,
   };
@@ -63,7 +67,7 @@ export async function GET(req: NextRequest) {
     where.assigneA = assigneA;
   }
 
-  // Autres filtres existants
+  // Autres filtres (severite, statut, search)...
   const severiteParam = searchParams.get('severite');
   if (severiteParam) {
     const severites = severiteParam.split(',').filter((s): s is Severite =>
@@ -78,7 +82,6 @@ export async function GET(req: NextRequest) {
       .split(',')
       .map(s => s.trim().toUpperCase() as StatutVulnerabilite)
       .filter(s => ['OUVERTE', 'EN_COURS', 'CORRIGEE'].includes(s));
-
     if (validStatuts.length > 0) {
       where.statut = { in: validStatuts };
     }
@@ -93,29 +96,55 @@ export async function GET(req: NextRequest) {
     ];
   }
 
-  const [vulnerabilities, total] = await Promise.all([
-    prisma.vulnerabilite.findMany({
+  let vulnerabilities;
+  let total = 0;
+
+  if (fetchAll) {
+    // Récupérer TOUT sans pagination
+    vulnerabilities = await prisma.vulnerabilite.findMany({
       where,
       include: {
         scan: { select: { id: true, type: true, cible: true, outil: true } },
         assigne: { select: { id: true, nom: true, prenom: true, email: true } },
-        tags: { include: { tag: true } },
       },
       orderBy: [
         { risqueRelatif: 'desc' },
         { scoreCVSS: 'desc' },
         { dateDecouverte: 'desc' }
       ],
-      skip,
-      take: limit,
-    }),
-    prisma.vulnerabilite.count({ where }),
-  ]);
+    });
+    total = vulnerabilities.length;
+  } else {
+    // Comportement normal avec pagination
+    const result = await Promise.all([
+      prisma.vulnerabilite.findMany({
+        where,
+        include: {
+          scan: { select: { id: true, type: true, cible: true, outil: true } },
+          assigne: { select: { id: true, nom: true, prenom: true, email: true } },
+          tags: { include: { tag: true } },
+        },
+        orderBy: [
+          { risqueRelatif: 'desc' },
+          { scoreCVSS: 'desc' },
+          { dateDecouverte: 'desc' }
+        ],
+        skip,
+        take: limit,
+      }),
+      prisma.vulnerabilite.count({ where }),
+    ]);
+
+    vulnerabilities = result[0];
+    total = result[1];
+  }
 
   return NextResponse.json({
     success: true,
     data: vulnerabilities,
-    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+    pagination: fetchAll 
+      ? { page: 1, limit: total, total, pages: 1 }
+      : { page, limit, total, pages: Math.ceil(total / limit) }
   });
 }
 

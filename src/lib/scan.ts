@@ -3,12 +3,12 @@ import { prisma } from '@/lib/prisma';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
-import { StatutScan, Severite, Priorite, StatutVulnerabilite } from '@prisma/client';
+import { StatutScan, Severite, StatutVulnerabilite } from '@prisma/client';
 import { broadcastScanCompleted } from './sse';
 
 const execAsync = promisify(exec);
 
-// Define proper types
+// ==================== TYPES ====================
 interface PythonScanResult {
   status: string;
   data: PythonVulnerability[];
@@ -31,10 +31,6 @@ interface PythonVulnerability {
   solution?: string;
   impact?: string;
   threat?: string;
-}
-
-interface ScanError extends Error {
-  message: string;
 }
 
 // ==================== TRIGGER SCAN ====================
@@ -63,22 +59,23 @@ export async function triggerScanBackground(scanId: string) {
     if (stderr) console.warn(`[Python stderr]: ${stderr}`);
     if (stdout) console.log(`[Python stdout]: ${stdout}`);
 
-    // === NOUVEAU : Parsing du résultat Python ===
+    // Parsing du résultat Python
     const pythonResult: PythonScanResult = JSON.parse(stdout.trim());
-    
+
     if (pythonResult.status === "success" && pythonResult.data) {
       await saveVulnerabilitiesFromPython(scanId, pythonResult.data);
     }
 
+    // Post-traitement SANS création automatique de plans
     await postScanProcessing(scanId);
 
     return { success: true, scanId };
-  } catch (error) {
-    const err = error as ScanError;
-    console.error(`❌ Erreur lors du scan ${scanId}:`, err);
+
+  } catch (error: any) {
+    console.error(`❌ Erreur lors du scan ${scanId}:`, error);
     await prisma.scan.update({
       where: { id: scanId },
-      data: { statut: StatutScan.ECHEC, fin: new Date(), erreur: err.message }
+      data: { statut: StatutScan.ECHEC, fin: new Date(), erreur: error.message }
     });
     throw error;
   }
@@ -122,61 +119,23 @@ function mapSeverity(sev: string | undefined): Severite {
   return Severite.LOW;
 }
 
-// ==================== POST-PROCESSING ====================
+// ==================== POST-PROCESSING (SANS PLANS AUTO) ====================
 async function postScanProcessing(scanId: string) {
   try {
     console.log(`📥 Début du post-traitement pour le scan ${scanId}...`);
 
-    await createRemediationPlans(scanId);
-
+    // Mise à jour du statut du scan
     await prisma.scan.update({
       where: { id: scanId },
       data: { statut: StatutScan.TERMINE, fin: new Date() }
     });
 
     console.log(`✅ [SCAN SUCCESS] Scan ${scanId} terminé avec succès`);
+
     await sendScanCompletionAlert(scanId);
+
   } catch (error) {
     console.error(`Erreur post-traitement:`, error);
-  }
-}
-
-// ==================== CRÉATION PLANS ====================
-async function createRemediationPlans(scanId: string) {
-  try {
-    const vulnerabilites = await prisma.vulnerabilite.findMany({
-      where: { idScan: scanId, plan: null },
-      include: { scan: true }
-    });
-
-    console.log(`🛠️ ${vulnerabilites.length} vulnérabilités trouvées sans plan`);
-
-    if (vulnerabilites.length === 0) return;
-
-    for (const vuln of vulnerabilites) {
-      await prisma.planCorrection.create({
-        data: {
-          idVulnerabilite: vuln.id,
-          assigneA: vuln.assigneA || vuln.scan?.lancerPar || "00000000-0000-0000-0000-000000000000",
-          priorite: getPrioriteFromSeverite(vuln.severite),
-          dateEcheance: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-          statut: 'A_FAIRE',
-          commentaire: `Plan auto généré après scan`,
-        }
-      });
-    }
-    console.log(`✅ ${vulnerabilites.length} plans créés`);
-  } catch (error) {
-    console.error("Erreur création plans:", error);
-  }
-}
-
-function getPrioriteFromSeverite(severite: Severite): Priorite {
-  switch (severite) {
-    case Severite.CRITICAL: return Priorite.CRITIQUE;
-    case Severite.HIGH: return Priorite.HAUTE;
-    case Severite.MEDIUM: return Priorite.MOYENNE;
-    default: return Priorite.BASSE;
   }
 }
 
@@ -187,6 +146,7 @@ async function sendScanCompletionAlert(scanId: string) {
       where: { id: scanId },
       include: { vulnerabilites: true }
     });
+
     if (!scan) return;
 
     const nbCritiques = scan.vulnerabilites.filter(v => v.severite === Severite.CRITICAL).length;

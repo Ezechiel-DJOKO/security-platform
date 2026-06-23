@@ -4,7 +4,6 @@
 import { useState } from 'react';
 import { Suspense } from 'react';
 import { CheckSquare } from 'lucide-react';
-
 import PlansCorrectionTechnicien from '@/components/dashboard/PlansCorrectionTechnicien';
 import StatsPlans from '@/components/plans-correction/StatsPlans';
 import PlansCorrectionTable from '@/components/plans-correction/PlansCorrectionTable';
@@ -12,15 +11,14 @@ import NewPlanModal from '@/components/plans-correction/NewPlanModal';
 
 export default function PlansCorrectionPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  // Récupérez le rôle via un hook personnalisé ou localStorage
-  // Pour l'instant, je mets un exemple avec un état
-  const [role] = useState<string>('ADMIN'); // ou 'TECHNICIEN'
-  
+  const [refreshKey, setRefreshKey] = useState(0); // Pour rafraîchir le tableau
+
+  // Rôle actuel (à remplacer plus tard par un vrai hook d'authentification)
+  const [role] = useState<string>('ADMIN'); 
   const isTechnicien = role === 'TECHNICIEN';
 
-  const handleSubmit = (data: any) => {
-    console.log('Nouveau plan:', data);
+  const handleSuccess = () => {
+    setRefreshKey(prev => prev + 1); // Force le rechargement du tableau
     setIsModalOpen(false);
   };
 
@@ -36,15 +34,15 @@ export default function PlansCorrectionPage() {
               {isTechnicien ? 'Mes Plans de Correction' : 'Plans de Correction'}
             </h1>
             <p className="text-slate-400 mt-2">
-              {isTechnicien 
-                ? 'Suivi de mes corrections assignées' 
+              {isTechnicien
+                ? 'Suivi de mes corrections assignées'
                 : 'Suivi et gestion des plans de correction des vulnérabilités'}
             </p>
           </div>
         </div>
 
         {!isTechnicien && (
-          <button 
+          <button
             onClick={() => setIsModalOpen(true)}
             className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-medium transition"
           >
@@ -59,9 +57,9 @@ export default function PlansCorrectionPage() {
           <PlansCorrectionTechnicien />
         ) : (
           <>
-            <StatsPlans />
+            <StatsPlans refreshTrigger={refreshKey} />
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-              <PlansCorrectionTable />
+              <PlansCorrectionTable key={refreshKey} />
             </div>
           </>
         )}
@@ -70,7 +68,7 @@ export default function PlansCorrectionPage() {
       <NewPlanModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSubmit={handleSubmit}
+        onSuccess={handleSuccess}
       />
     </div>
   );

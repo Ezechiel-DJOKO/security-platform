@@ -1,32 +1,18 @@
 'use client';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Edit3, Trash2, Play, User } from 'lucide-react';
+import { Edit3, Trash2, Play, User, Search, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import toast from 'react-hot-toast';
 
 type PlanCorrection = {
   id: string;
-  vulnerabilite: {
-    id: string;
-    titre: string;
-    severite: string;
-    statut: string;
-  };
-  assigne: { 
-    id: string;
-    nom: string;
-    prenom: string;
-  } | null;
+  vulnerabilite: { id: string; titre: string; severite: string; statut: string };
+  assigne: { id: string; nom: string; prenom: string; email?: string } | null;
   priorite: string;
   dateEcheance: string;
   statut: string;
+  commentaire?: string;
 };
-
-interface PlansCorrectionTableProps {
-  filterStatus?: string;
-  searchTerm?: string;
-  onStatChange?: () => void;
-}
 
 const statutConfig: Record<string, { label: string; color: string }> = {
   A_FAIRE: { label: "À faire", color: "bg-slate-500/10 text-slate-400" },
@@ -37,47 +23,28 @@ const statutConfig: Record<string, { label: string; color: string }> = {
   EN_RETARD: { label: "En retard", color: "bg-red-500/10 text-red-400" },
 };
 
-export default function PlansCorrectionTable({
-  filterStatus = '',
-  searchTerm = '',
-  onStatChange,
-}: PlansCorrectionTableProps) {
+export default function PlansCorrectionTable() {
   const [plans, setPlans] = useState<PlanCorrection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [editingPlan, setEditingPlan] = useState<PlanCorrection | null>(null);
 
-  // Use useCallback to memoize fetchPlans
   const fetchPlans = useCallback(async () => {
     try {
-      const res = await fetch('/api/plans-correction', {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache' }
-      });
+      const res = await fetch('/api/plans-correction');
       const data = await res.json();
-      setPlans(Array.isArray(data) ? data : data.plans || data.data || []);
-    } catch (_error) {
-      // Prefix with underscore to indicate intentionally unused
-      console.error('Erreur fetch plans:', _error);
-      toast.error("Impossible de charger les plans de correction");
+      setPlans(Array.isArray(data) ? data : data.data || []);
+    } catch (error) {
+      console.error(error);
+      toast.error("Impossible de charger les plans");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Move useEffect after fetchPlans is defined
   useEffect(() => {
-    let isMounted = true;
-    
-    const loadPlans = async () => {
-      if (isMounted) {
-        await fetchPlans();
-      }
-    };
-    
-    loadPlans();
-    
-    return () => {
-      isMounted = false;
-    };
+    fetchPlans();
   }, [fetchPlans]);
 
   const filteredPlans = useMemo(() => {
@@ -90,211 +57,270 @@ export default function PlansCorrectionTable({
     });
   }, [plans, filterStatus, searchTerm]);
 
+  // ====================== ACTIONS ======================
   const updateStatut = useCallback(async (id: string, newStatut: string) => {
-    const config = statutConfig[newStatut];
-    if (!confirm(`Changer le statut en "${config?.label}" ?`)) return;
-
+    if (!confirm(`Passer le statut à "${statutConfig[newStatut]?.label}" ?`)) return;
     try {
       const res = await fetch(`/api/plans-correction/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ statut: newStatut }),
       });
-
       if (res.ok) {
-        toast.success(`✅ Statut mis à jour → ${config.label}`);
-        await fetchPlans();
-        onStatChange?.();
+        toast.success(`Statut mis à jour → ${statutConfig[newStatut].label}`);
+        fetchPlans();
       } else {
-        toast.error("Erreur lors de la mise à jour du statut");
+        toast.error("Erreur lors de la mise à jour");
       }
-    } catch (_error) {
-      // Prefix with underscore to indicate intentionally unused
+    } catch {
       toast.error("Erreur réseau");
     }
-  }, [fetchPlans, onStatChange]);
+  }, [fetchPlans]);
+
+  const handleEdit = (plan: PlanCorrection) => setEditingPlan(plan);
+
+  const saveEdit = async (updatedData: any) => {
+    if (!editingPlan) return;
+    try {
+      const res = await fetch(`/api/plans-correction/${editingPlan.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedData),
+      });
+      if (res.ok) {
+        toast.success("Plan modifié avec succès");
+        fetchPlans();
+        setEditingPlan(null);
+      } else {
+        toast.error("Erreur lors de la modification");
+      }
+    } catch {
+      toast.error("Erreur réseau");
+    }
+  };
 
   const handleDelete = useCallback(async (id: string) => {
-    if (!confirm("Supprimer définitivement ce plan de correction ?")) return;
+    if (!confirm("Supprimer définitivement ce plan ?")) return;
     try {
       const res = await fetch(`/api/plans-correction/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        toast.success("🗑️ Plan supprimé");
-        await fetchPlans();
-        onStatChange?.();
-      } else {
-        toast.error("Erreur lors de la suppression");
+        toast.success("Plan supprimé");
+        fetchPlans();
       }
-    } catch (_error) {
-      // Prefix with underscore to indicate intentionally unused
-      toast.error("Erreur réseau");
+    } catch {
+      toast.error("Erreur lors de la suppression");
     }
-  }, [fetchPlans, onStatChange]);
+  }, [fetchPlans]);
 
-  // Loading skeleton
+  // ====================== RENDU ======================
   if (loading) {
-    return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-900 border-b border-slate-800">
-            <tr>
-              <th className="px-6 py-4 text-left text-slate-300 font-medium">Vulnérabilité</th>
-              <th className="px-6 py-4 text-left text-slate-300 font-medium">Priorité</th>
-              <th className="px-6 py-4 text-left text-slate-300 font-medium">Assigné à</th>
-              <th className="px-6 py-4 text-left text-slate-300 font-medium">Échéance</th>
-              <th className="px-6 py-4 text-left text-slate-300 font-medium">Statut</th>
-              <th className="px-6 py-4 text-right text-slate-300 font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800">
-            {[...Array(5)].map((_, index) => (
-              <tr key={index} className="animate-pulse">
-                <td className="px-6 py-4">
-                  <div className="h-4 bg-slate-800 rounded w-48"></div>
-                  <div className="h-3 bg-slate-800 rounded w-24 mt-2"></div>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="h-6 bg-slate-800 rounded w-16"></div>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="h-6 bg-slate-800 rounded w-24"></div>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="h-4 bg-slate-800 rounded w-20"></div>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="h-6 bg-slate-800 rounded w-16"></div>
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <div className="flex gap-2 justify-end">
-                    <div className="h-8 w-8 bg-slate-800 rounded"></div>
-                    <div className="h-8 w-8 bg-slate-800 rounded"></div>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
+    return <div className="text-center py-12 text-slate-400">Chargement des plans...</div>;
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="bg-slate-900 border-b border-slate-800">
-          <tr>
-            <th className="px-6 py-4 text-left text-slate-300 font-medium">Vulnérabilité</th>
-            <th className="px-6 py-4 text-left text-slate-300 font-medium">Priorité</th>
-            <th className="px-6 py-4 text-left text-slate-300 font-medium">Assigné à</th>
-            <th className="px-6 py-4 text-left text-slate-300 font-medium">Échéance</th>
-            <th className="px-6 py-4 text-left text-slate-300 font-medium">Statut</th>
-            <th className="px-6 py-4 text-right text-slate-300 font-medium">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-800">
-          {filteredPlans.length === 0 ? (
+    <div className="space-y-4">
+      {/* Filtres */}
+      <div className="flex flex-wrap gap-3 items-center bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div className="relative flex-1 min-w-[280px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
+          <input
+            type="text"
+            placeholder="Rechercher par titre ou CVE..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-slate-950 border border-slate-700 pl-10 py-2.5 rounded-lg text-sm"
+          />
+        </div>
+
+        <select 
+          value={filterStatus} 
+          onChange={(e) => setFilterStatus(e.target.value)} 
+          className="bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5"
+        >
+          <option value="">Tous les statuts</option>
+          <option value="A_FAIRE">À faire</option>
+          <option value="EN_COURS">En cours</option>
+          <option value="TERMINE">Terminé</option>
+          <option value="VERIFIE">Vérifié</option>
+          <option value="ANNULE">Annulé</option>
+          <option value="EN_RETARD">En retard</option>
+        </select>
+
+        <Button variant="outline" onClick={fetchPlans}>
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Rafraîchir
+        </Button>
+      </div>
+
+      {/* Tableau */}
+      <div className="overflow-x-auto bg-slate-900 border border-slate-800 rounded-2xl">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-950">
             <tr>
-              <td colSpan={6} className="text-center py-16 text-slate-500">
-                Aucun plan de correction trouvé
-              </td>
+              <th className="px-6 py-4 text-left">Vulnérabilité</th>
+              <th className="px-6 py-4 text-left">Priorité</th>
+              <th className="px-6 py-4 text-left">Assigné à</th>
+              <th className="px-6 py-4 text-left">Échéance</th>
+              <th className="px-6 py-4 text-left">Statut</th>
+              <th className="px-6 py-4 text-right">Actions</th>
             </tr>
-          ) : (
-            filteredPlans.map((plan) => {
-              const config = statutConfig[plan.statut] || { 
-                label: plan.statut, 
-                color: "bg-slate-500/10 text-slate-400" 
-              };
-
-              return (
-                <tr key={plan.id} className="hover:bg-slate-900/50 transition-colors">
-                  <td className="px-6 py-4">
-                    <p className="font-medium line-clamp-2 text-slate-100">{plan.vulnerabilite.titre}</p>
-                    <p className="text-xs text-slate-500 mt-1">{plan.vulnerabilite.id}</p>
-                  </td>
-
-                  <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      plan.priorite === 'CRITIQUE' ? 'bg-red-500/10 text-red-400' :
-                      plan.priorite === 'HAUTE' ? 'bg-orange-500/10 text-orange-400' :
-                      'bg-yellow-500/10 text-yellow-400'
-                    }`}>
-                      {plan.priorite}
-                    </span>
-                  </td>
-
-                  <td className="px-6 py-4">
-                    {plan.assigne ? (
-                      <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-lg w-fit">
-                        <User className="w-4 h-4 text-emerald-400" />
-                        <span className="font-medium text-slate-100">
-                          {plan.assigne.prenom} {plan.assigne.nom}
-                        </span>
+          </thead>
+          <tbody className="divide-y divide-slate-800">
+            {filteredPlans.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-16">
+                  <div className="flex flex-col items-center justify-center text-center">
+                    <div className="text-6xl mb-4 text-slate-700">📭</div>
+                    <p className="text-xl font-medium text-slate-300">Aucun plan de correction trouvé</p>
+                    <p className="text-slate-500 mt-2 max-w-sm">
+                      {searchTerm || filterStatus 
+                        ? "Aucun résultat ne correspond à vos filtres" 
+                        : "Vous n'avez pas encore créé de plan de correction"}
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              filteredPlans.map((plan) => {
+                const config = statutConfig[plan.statut] || { label: plan.statut, color: "bg-slate-500/10 text-slate-400" };
+                return (
+                  <tr key={plan.id} className="hover:bg-slate-800/50">
+                    <td className="px-6 py-4">
+                      <p className="font-medium">{plan.vulnerabilite.titre}</p>
+                      <p className="text-xs text-slate-500">{plan.vulnerabilite.id}</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        plan.priorite === 'CRITIQUE' ? 'bg-red-500/10 text-red-400' :
+                        plan.priorite === 'HAUTE' ? 'bg-orange-500/10 text-orange-400' :
+                        'bg-yellow-500/10 text-yellow-400'
+                      }`}>
+                        {plan.priorite}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {plan.assigne ? (
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-emerald-400" />
+                          <span>{plan.assigne.prenom} {plan.assigne.nom}</span>
+                        </div>
+                      ) : '-'}
+                    </td>
+                    <td className="px-6 py-4 text-slate-300">
+                      {new Date(plan.dateEcheance).toLocaleDateString('fr-FR')}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${config.color}`}>
+                        {config.label}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex gap-2 justify-end">
+                        {(plan.statut === 'A_FAIRE' || plan.statut === 'EN_RETARD') && (
+                          <Button size="sm" variant="outline" onClick={() => updateStatut(plan.id, 'EN_COURS')}>
+                            <Play className="w-4 h-4 mr-1" /> Démarrer
+                          </Button>
+                        )}
+                        {plan.statut === 'EN_COURS' && (
+                          <Button size="sm" variant="outline" onClick={() => updateStatut(plan.id, 'TERMINE')}>
+                            Terminer
+                          </Button>
+                        )}
+                        {plan.statut === 'TERMINE' && (
+                          <Button size="sm" variant="outline" className="text-emerald-400" onClick={() => updateStatut(plan.id, 'VERIFIE')}>
+                            Vérifier
+                          </Button>
+                        )}
+                        {(plan.statut !== 'ANNULE' && plan.statut !== 'VERIFIE') && (
+                          <Button size="sm" variant="outline" className="text-gray-400" onClick={() => updateStatut(plan.id, 'ANNULE')}>
+                            Annuler
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" onClick={() => handleEdit(plan)}>
+                          <Edit3 className="w-4 h-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-red-400" onClick={() => handleDelete(plan.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
-                    ) : (
-                      <span className="text-slate-500 text-3xl font-light">-</span>
-                    )}
-                  </td>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
 
-                  <td className="px-6 py-4 text-slate-300">
-                    {new Date(plan.dateEcheance).toLocaleDateString('fr-FR')}
-                  </td>
+      {/* Modal d'édition */}
+      {editingPlan && (
+        <EditPlanModal
+          plan={editingPlan}
+          isOpen={!!editingPlan}
+          onClose={() => setEditingPlan(null)}
+          onSave={saveEdit}
+        />
+      )}
+    </div>
+  );
+}
 
-                  <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${config.color}`}>
-                      {config.label}
-                    </span>
-                  </td>
+/* ====================== MODAL D'ÉDITION ====================== */
+function EditPlanModal({ plan, isOpen, onClose, onSave }: {
+  plan: PlanCorrection;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (data: any) => void;
+}) {
+  const [form, setForm] = useState({
+    priorite: plan.priorite,
+    dateEcheance: plan.dateEcheance.split('T')[0],
+    commentaire: plan.commentaire || '',
+  });
 
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex gap-2 justify-end flex-wrap">
-                      {(plan.statut === 'A_FAIRE' || plan.statut === 'EN_RETARD') && (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10" 
-                          onClick={() => updateStatut(plan.id, 'EN_COURS')}
-                          aria-label="Démarrer le plan"
-                        >
-                          <Play className="w-4 h-4 mr-1" /> Démarrer
-                        </Button>
-                      )}
-                      {plan.statut === 'EN_COURS' && (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="text-green-400 hover:text-green-300 hover:bg-green-500/10" 
-                          onClick={() => updateStatut(plan.id, 'TERMINE')}
-                          aria-label="Terminer le plan"
-                        >
-                          <Play className="w-4 h-4 mr-1 rotate-90" /> Terminer
-                        </Button>
-                      )}
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => toast("Fonction d'édition complète à venir")}
-                        aria-label="Modifier le plan"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10" 
-                        onClick={() => handleDelete(plan.id)}
-                        aria-label="Supprimer le plan"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })
-          )}
-        </tbody>
-      </table>
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(form);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6">
+        <div className="flex justify-between mb-6">
+          <h2 className="text-xl font-semibold">Modifier le Plan</h2>
+          <button onClick={onClose}><X className="w-5 h-5" /></button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* ... (le reste du modal reste inchangé) */}
+          <div>
+            <label className="text-sm text-slate-400">Priorité</label>
+            <select value={form.priorite} onChange={(e) => setForm({ ...form, priorite: e.target.value })} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 mt-1">
+              <option value="CRITIQUE">Critique</option>
+              <option value="HAUTE">Haute</option>
+              <option value="MOYENNE">Moyenne</option>
+              <option value="BASSE">Basse</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-sm text-slate-400">Date d'échéance</label>
+            <input type="date" value={form.dateEcheance} onChange={(e) => setForm({ ...form, dateEcheance: e.target.value })} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 mt-1" />
+          </div>
+
+          <div>
+            <label className="text-sm text-slate-400">Commentaire / Actions</label>
+            <textarea value={form.commentaire} onChange={(e) => setForm({ ...form, commentaire: e.target.value })} rows={4} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 mt-1" />
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Annuler</Button>
+            <Button type="submit" className="flex-1">Enregistrer</Button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

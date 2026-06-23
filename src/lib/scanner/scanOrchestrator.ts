@@ -5,7 +5,6 @@ import { startOpenvasScan } from './openvas';
 import { processScanResults } from './postScanProcessor';
 import { sendAlert } from '@/lib/alertService';
 
-// Define proper types
 interface OpenVASResult {
   raw: unknown;
   jobId: string;
@@ -27,17 +26,17 @@ export async function orchestrateScan(scanId: string) {
     // 1. Passage en EN_COURS
     await prisma.scan.update({
       where: { id: scanId },
-      data: { 
-        statut: StatutScan.EN_COURS, 
-        debut: new Date() 
+      data: {
+        statut: StatutScan.EN_COURS,
+        debut: new Date()
       }
     });
 
     const scan = await prisma.scan.findUnique({
       where: { id: scanId },
-      include: { 
+      include: {
         actif: true,
-        utilisateur: true 
+        utilisateur: true
       }
     });
 
@@ -45,9 +44,12 @@ export async function orchestrateScan(scanId: string) {
 
     // 2. Lancement du scan OpenVAS
     console.log(`📡 Démarrage scan OpenVAS sur ${scan.cible}`);
-    const openvasResult = await startOpenvasScan(scan.cible || scan.actif.adresseIP || "", scan.id);
+    const openvasResult = await startOpenvasScan(
+      scan.cible || scan.actif.adresseIP || "", 
+      scan.id
+    );
 
-    // 3. Mise à jour des résultats bruts avec type safety
+    // 3. Mise à jour des résultats bruts
     const currentMetadata = scan.metadata as ScanMetadata || {};
     await prisma.scan.update({
       where: { id: scanId },
@@ -60,22 +62,10 @@ export async function orchestrateScan(scanId: string) {
       }
     });
 
-    // 4. Post-traitement (analyse CVE, CVSS, création des vulnérabilités)
+    // 4. Post-traitement (création / mise à jour des vulnérabilités)
     await processScanResults(scanId);
 
-    // 5. Création automatique des plans de correction pour les vulnérabilités critiques
-    const criticalVulns = await prisma.vulnerabilite.findMany({
-      where: { 
-        idScan: scanId,
-        severite: { in: ['CRITICAL', 'HIGH'] }
-      }
-    });
-
-    for (const vuln of criticalVulns) {
-      await createRemediationPlan(vuln.id, scan.lancerPar);
-    }
-
-    // 6. Finalisation du scan
+    // 5. Finalisation du scan
     await prisma.scan.update({
       where: { id: scanId },
       data: {
@@ -85,12 +75,19 @@ export async function orchestrateScan(scanId: string) {
       }
     });
 
-    // 7. Envoi des alertes
+    // 6. Envoi des alertes (sans créer de plans)
+    const criticalVulnsCount = await prisma.vulnerabilite.count({
+      where: {
+        idScan: scanId,
+        severite: { in: ['CRITICAL', 'HIGH'] }
+      }
+    });
+
     await sendAlert({
       scanId,
       type: 'SCAN_COMPLETED',
-      message: `Scan terminé sur ${scan.actif.nom} - ${criticalVulns.length} vulnérabilités critiques détectées`,
-      severity: criticalVulns.length > 0 ? 'CRITICAL' : 'INFO',
+      message: `Scan terminé sur ${scan.actif.nom} - ${criticalVulnsCount} vulnérabilités critiques détectées`,
+      severity: criticalVulnsCount > 0 ? 'CRITICAL' : 'INFO',
       userId: scan.lancerPar
     });
 
@@ -103,10 +100,10 @@ export async function orchestrateScan(scanId: string) {
 
     await prisma.scan.update({
       where: { id: scanId },
-      data: { 
-        statut: StatutScan.ECHEC, 
-        erreur: err.message, 
-        fin: new Date() 
+      data: {
+        statut: StatutScan.ECHEC,
+        erreur: err.message,
+        fin: new Date()
       }
     });
 
@@ -119,18 +116,4 @@ export async function orchestrateScan(scanId: string) {
 
     return { success: false, error: err.message };
   }
-}
-
-/** Fonction locale pour créer un plan de correction */
-async function createRemediationPlan(vulnerabiliteId: string, assignePar: string) {
-  return prisma.planCorrection.create({
-    data: {
-      idVulnerabilite: vulnerabiliteId,
-      assigneA: assignePar,
-      priorite: 'HAUTE',
-      dateEcheance: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // +7 jours
-      statut: 'A_FAIRE',
-      commentaire: "Généré automatiquement après détection par OpenVAS"
-    }
-  });
 }

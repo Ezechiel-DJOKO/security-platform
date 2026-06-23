@@ -1,8 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Eye, UserPlus, RefreshCw } from 'lucide-react';
-import VulnerabilityDetailModal from './VulnerabilityDetailModal';
-import AssignModal from './AssignModal';
+import { RefreshCw } from 'lucide-react';
 import { Severite } from '@prisma/client';
 
 interface Vulnerability {
@@ -34,10 +32,6 @@ export function VulnerabilitiesTable() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [severiteFilter, setSeveriteFilter] = useState('');
-  const [statutFilter, setStatutFilter] = useState('');
-  const [selectedVuln, setSelectedVuln] = useState<Vulnerability | null>(null);
-  const [showDetail, setShowDetail] = useState(false);
-  const [showAssign, setShowAssign] = useState(false);
   const isFirstRender = useRef(true);
 
   const fetchVulnerabilities = useCallback(async () => {
@@ -46,7 +40,6 @@ export function VulnerabilitiesTable() {
       const params = new URLSearchParams();
       if (search) params.append('search', search);
       if (severiteFilter) params.append('severite', severiteFilter);
-      if (statutFilter) params.append('statut', statutFilter);
 
       const res = await fetch(`/api/vulnerabilities?${params}`);
       const data: { data?: ApiVulnerability[] } = await res.json();
@@ -69,7 +62,7 @@ export function VulnerabilitiesTable() {
     } finally {
       setLoading(false);
     }
-  }, [search, severiteFilter, statutFilter]);
+  }, [search, severiteFilter]);
 
   useEffect(() => {
     if (isFirstRender.current) {
@@ -80,7 +73,7 @@ export function VulnerabilitiesTable() {
 
     const timer = setTimeout(fetchVulnerabilities, 300);
     return () => clearTimeout(timer);
-  }, [search, severiteFilter, statutFilter, fetchVulnerabilities]);
+  }, [search, severiteFilter, fetchVulnerabilities]);
 
   const getSeveriteClass = (severite: Severite | null) => {
     switch (severite) {
@@ -97,12 +90,6 @@ export function VulnerabilitiesTable() {
     }
   };
 
-  const getStatutClass = (statut: string) => {
-    if (statut === 'OUVERTE') return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400';
-    if (statut === 'EN_COURS') return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
-    return 'bg-slate-100 text-slate-800 dark:bg-slate-900/30 dark:text-slate-400';
-  };
-
   return (
     <div className="space-y-4">
       {/* Filtres */}
@@ -114,7 +101,6 @@ export function VulnerabilitiesTable() {
           onChange={(e) => setSearch(e.target.value)}
           className="w-full max-w-sm rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
         />
-
         <select
           value={severiteFilter}
           onChange={(e) => setSeveriteFilter(e.target.value)}
@@ -125,16 +111,6 @@ export function VulnerabilitiesTable() {
           <option value="HIGH">Haute</option>
           <option value="MEDIUM">Moyenne</option>
           <option value="LOW">Basse</option>
-        </select>
-
-        <select
-          value={statutFilter}
-          onChange={(e) => setStatutFilter(e.target.value)}
-          className="w-40 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-        >
-          <option value="">Tous les statuts</option>
-          <option value="OUVERTE">Ouverte</option>
-          <option value="EN_COURS">En cours</option>
         </select>
 
         <button
@@ -155,20 +131,18 @@ export function VulnerabilitiesTable() {
               <th className="p-4">Sévérité</th>
               <th className="p-4">CVSS</th>
               <th className="p-4">Risque Relatif</th>
-              <th className="p-4">Statut</th>
-              <th className="p-4">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
             {loading && vulnerabilities.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-slate-500">
+                <td colSpan={4} className="p-8 text-center text-slate-500">
                   Chargement des vulnérabilités...
                 </td>
               </tr>
             ) : vulnerabilities.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-slate-500">
+                <td colSpan={4} className="p-8 text-center text-slate-500">
                   Aucune vulnérabilité trouvée.
                 </td>
               </tr>
@@ -198,59 +172,12 @@ export function VulnerabilitiesTable() {
                       {vuln.risqueRelatif?.toFixed(1) ?? '-'}
                     </span>
                   </td>
-                  <td className="p-4">
-                    <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${getStatutClass(vuln.statut)}`}>
-                      {vuln.statut === 'OUVERTE' ? 'Ouverte' : 'En cours'}
-                    </span>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          setSelectedVuln(vuln);
-                          setShowDetail(true);
-                        }}
-                        className="rounded p-2 text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                        title="Voir les détails"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setSelectedVuln(vuln);
-                          setShowAssign(true);
-                        }}
-                        className="rounded p-2 text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                        title="Assigner à un technicien"
-                      >
-                        <UserPlus className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
-
-      {/* Modales */}
-      {selectedVuln && (
-        <>
-          <VulnerabilityDetailModal
-            open={showDetail}
-            onClose={() => setShowDetail(false)}
-            vulnerability={selectedVuln}
-          />
-          <AssignModal
-            open={showAssign}
-            onClose={() => setShowAssign(false)}
-            vulnerability={selectedVuln}
-            onSuccess={fetchVulnerabilities}
-          />
-        </>
-      )}
     </div>
   );
 }

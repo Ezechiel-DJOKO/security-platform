@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       }
     };
 
-    // Filtrage pour le Technicien
+    // Si le technicien veut voir seulement ses plans
     if (mesPlans && session.user.role === 'TECHNICIEN') {
       whereClause.assigneA = session.user.id;
     }
@@ -47,9 +47,7 @@ export async function GET(request: NextRequest) {
           }
         }
       },
-      orderBy: {
-        createdAt: 'desc'
-      },
+      orderBy: { createdAt: 'desc' }
     });
 
     // Calcul du retard
@@ -72,16 +70,17 @@ export async function GET(request: NextRequest) {
       data: plansAvecRetard,
       count: plansAvecRetard.length
     });
+
   } catch (error) {
     console.error("Erreur GET /api/plans-correction:", error);
-    return NextResponse.json(
-      { success: false, error: "Erreur serveur lors de la récupération des plans" },
-      { status: 500 }
-    );
+    return NextResponse.json({ 
+      success: false, 
+      error: "Erreur serveur lors de la récupération des plans" 
+    }, { status: 500 });
   }
 }
 
-// POST - Création d'un plan de correction (Admin / Auditeur)
+// POST - Création d'un ou plusieurs plans
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -89,49 +88,54 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
+    // Vérification des droits (Admin ou Auditeur uniquement)
+    if (!['ADMIN', 'AUDITEUR'].includes(session.user.role as string)) {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+
     const body = await request.json();
 
-    const plan = await prisma.planCorrection.create({
-      data: {
-        idVulnerabilite: body.idVulnerabilite,
-        assigneA: null,        // ← Correction principale
-        priorite: body.priorite || 'MOYENNE',
-        dateEcheance: new Date(body.dateEcheance),
-        statut: body.statut || StatutPlan.A_FAIRE,
-        commentaire: body.commentaire || undefined,
-      },
-      include: {
-        vulnerabilite: {
-          select: {
-            id: true,
-            titre: true,
-            severite: true,
-            scoreCVSS: true,
-            cveId: true,
-            statut: true
-          }
+    if (!body.vulnerabiliteIds || body.vulnerabiliteIds.length === 0) {
+      return NextResponse.json({ error: "Au moins une vulnérabilité est requise" }, { status: 400 });
+    }
+    if (!body.assigneA) {
+      return NextResponse.json({ error: "Le technicien est obligatoire" }, { status: 400 });
+    }
+    if (!body.dateEcheance) {
+      return NextResponse.json({ error: "La date d'échéance est obligatoire" }, { status: 400 });
+    }
+
+    const plansCrees = [];
+
+    for (const idVuln of body.vulnerabiliteIds) {
+      const plan = await prisma.planCorrection.create({
+        data: {
+          idVulnerabilite: idVuln,
+          assigneA: body.assigneA,
+          priorite: body.priorite || 'HAUTE',
+          dateEcheance: new Date(body.dateEcheance),
+          statut: StatutPlan.A_FAIRE,
+          commentaire: body.description || body.commentaire || undefined,
         },
-        assigne: {
-          select: {
-            id: true,
-            nom: true,
-            prenom: true,
-            email: true
-          }
+        include: {
+          vulnerabilite: true,
+          assigne: true
         }
-      }
-    });
+      });
+      plansCrees.push(plan);
+    }
 
     return NextResponse.json({
       success: true,
-      data: plan
+      data: plansCrees,
+      message: `${plansCrees.length} plan(s) de correction créé(s) avec succès`
     }, { status: 201 });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Erreur POST /api/plans-correction:", error);
-    return NextResponse.json({
-      success: false,
-      error: "Erreur serveur lors de la création du plan"
+    return NextResponse.json({ 
+      success: false, 
+      error: "Erreur serveur lors de la création du plan" 
     }, { status: 500 });
   }
 }
