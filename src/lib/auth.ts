@@ -6,7 +6,7 @@ import { Pool } from "pg";
 import crypto from "crypto";
 import { logAuditEvent as logAuth } from "./audit";
 
-export type RoleUtilisateur = "ADMIN" | "SUPERVISEUR" | "AUDITEUR";
+export type RoleUtilisateur = "ADMIN" | "SUPERVISEUR" | "AUDITEUR" | "TECHNICIEN";
 
 // Solution anti-crash : Empêcher la duplication du pool de connexions sous Next.js (Fast Refresh)
 const globalForPrisma = globalThis as unknown as {
@@ -57,11 +57,11 @@ export const authOptions: NextAuthOptions = {
 
           // CRYPTO SIMPLE : Hachage du mot de passe reçu du formulaire
           const hashSaisi = hashPasswordSimple(credentials.password as string);
-          const isValid = hashSaisi === user.motDePasseHashe;
+          const isValid = hashSaisi === user.motDePasseHash;
 
           console.log("👉 MOT DE PASSE COMPARAISON :", {
             saisi: hashSaisi,
-            enBase: user.motDePasseHashe.substring(0, 30) + '...',
+            enBase: user.motDePasseHash.substring(0, 30) + '...',
             valide: isValid
           });
 

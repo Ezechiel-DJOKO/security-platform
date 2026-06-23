@@ -1,7 +1,7 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Shield, Eye, EyeOff, Lock, Mail, ArrowRight, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
@@ -11,13 +11,12 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
+  
+  // Utiliser useRef pour éviter l'hydratation mismatch
+  const isMounted = useRef(false);
 
-  // Fix: Use useEffect with proper handling - no setState in effect
   useEffect(() => {
-    // Using a simple effect to set mounted state is fine
-    // but we can also use a ref or just remove it
-    setMounted(true);
+    isMounted.current = true;
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -26,17 +25,15 @@ export default function LoginPage() {
     setError("");
 
     try {
-      // Désactivation de la redirection automatique pour capturer l'erreur localement
       const result = await signIn("credentials", {
         email,
         password,
-        redirect: false, // Modification ici
+        redirect: false,
       });
 
       if (result?.error) {
         setError("Identifiants incorrects. Veuillez réessayer.");
       } else if (result?.ok) {
-        // Redirection manuelle propre uniquement si la connexion réussit
         window.location.href = "/dashboard";
       }
     } catch {
@@ -46,9 +43,8 @@ export default function LoginPage() {
     }
   };
 
-  // Fix: Use the mounted state directly or compute isDisabled
-   
-  const isDisabled = mounted ? isLoading || !email || !password : true;
+  // CORRECTION: Toujours un booléen, jamais null
+  const isDisabled = isLoading || !email || !password;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4 relative overflow-hidden">
@@ -131,7 +127,8 @@ export default function LoginPage() {
                     onFocus={() => setFocusedField('email')}
                     onBlur={() => setFocusedField(null)}
                     required
-                    className="w-full pl-12 pr-4 py-3.5 bg-slate-800/50 border-2 border-slate-700 rounded-xl text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 focus:bg-slate-800 focus:ring-4 focus:ring-blue-500/10 transition-all duration-200"
+                    disabled={isLoading}
+                    className="w-full pl-12 pr-4 py-3.5 bg-slate-800/50 border-2 border-slate-700 rounded-xl text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 focus:bg-slate-800 focus:ring-4 focus:ring-blue-500/10 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <div className={`absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-300 rounded-full ${focusedField === 'email' ? 'w-full' : 'w-0'}`} />
                 </div>
@@ -159,12 +156,14 @@ export default function LoginPage() {
                     onFocus={() => setFocusedField('password')}
                     onBlur={() => setFocusedField(null)}
                     required
-                    className="w-full pl-12 pr-12 py-3.5 bg-slate-800/50 border-2 border-slate-700 rounded-xl text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 focus:bg-slate-800 focus:ring-4 focus:ring-blue-500/10 transition-all duration-200"
+                    disabled={isLoading}
+                    className="w-full pl-12 pr-12 py-3.5 bg-slate-800/50 border-2 border-slate-700 rounded-xl text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 focus:bg-slate-800 focus:ring-4 focus:ring-blue-500/10 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-500 hover:text-slate-300 transition-colors"
+                    disabled={isLoading}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-50"
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
@@ -172,10 +171,10 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Submit button */}
+              {/* Submit button - SOLUTION FINALE: Utiliser une valeur par défaut fixe */}
               <button
                 type="submit"
-                disabled={isDisabled}
+                disabled={isLoading || !email || !password ? true : false}
                 className="w-full group relative py-3.5 px-4 bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 hover:from-blue-600 hover:via-indigo-600 hover:to-blue-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-900/20 hover:shadow-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-200 overflow-hidden"
               >
                 <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />

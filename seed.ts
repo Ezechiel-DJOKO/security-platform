@@ -21,44 +21,56 @@ async function main() {
   await Promise.all([
     prisma.utilisateur.upsert({
       where: { email: "admin@test.com" },
-      update: { motDePasseHashe: password },
+      update: { motDePasseHash: password },
       create: {
         nom: "Admin",
         prenom: "Super",
         email: "admin@test.com",
-        motDePasseHashe: password,
+        motDePasseHash: password,
         role: "ADMIN",
         actif: true,
       }
     }),
     prisma.utilisateur.upsert({
       where: { email: "auditeur@test.com" },
-      update: { motDePasseHashe: password },
+      update: { motDePasseHash: password },
       create: {
         nom: "Auditeur",
         prenom: "Jean",
         email: "auditeur@test.com",
-        motDePasseHashe: password,
+        motDePasseHash: password,
         role: "AUDITEUR",
         actif: true,
       }
     }),
     prisma.utilisateur.upsert({
       where: { email: "superviseur@test.com" },
-      update: { motDePasseHashe: password },
+      update: { motDePasseHash: password },
       create: {
         nom: "Superviseur",
         prenom: "Marie",
         email: "superviseur@test.com",
-        motDePasseHashe: password,
+        motDePasseHash: password,
         role: "SUPERVISEUR",
+        actif: true,
+      }
+    }),
+    prisma.utilisateur.upsert({
+      where: { email: "technicien@test.com" },
+      update: { motDePasseHash: password },
+      create: {
+        nom: "Technicien",
+        prenom: "Paul",
+        email: "technicien@test.com",
+        motDePasseHash: password,
+        role: "TECHNICIEN",
         actif: true,
       }
     }),
   ]);
 
   console.log("✅ Seed terminé avec succès !");
-  console.log("→ admin@test.com / auditeur@test.com / superviseur@test.com");
+  console.log("→ admin@test.com / auditeur@test.com / superviseur@test.com / technicien@test.com");
   console.log("→ Mot de passe : password123");
 }
 
