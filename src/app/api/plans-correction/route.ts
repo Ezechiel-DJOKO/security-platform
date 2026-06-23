@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     const plan = await prisma.planCorrection.create({
       data: {
         idVulnerabilite: body.idVulnerabilite,
-        assigneA: body.assigneA,
+        assigneA: null,        // ← Correction principale
         priorite: body.priorite || 'MOYENNE',
         dateEcheance: new Date(body.dateEcheance),
         statut: body.statut || StatutPlan.A_FAIRE,
@@ -126,6 +126,7 @@ export async function POST(request: Request) {
       success: true,
       data: plan
     }, { status: 201 });
+
   } catch (error) {
     console.error("Erreur POST /api/plans-correction:", error);
     return NextResponse.json({

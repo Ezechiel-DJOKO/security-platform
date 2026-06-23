@@ -1,24 +1,31 @@
 // src/app/(dashboard)/plans-correction/page.tsx
+'use client';
+
+import { useState } from 'react';
 import { Suspense } from 'react';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { CheckSquare } from 'lucide-react';
 
 import PlansCorrectionTechnicien from '@/components/dashboard/PlansCorrectionTechnicien';
-
-// Import des composants Admin existants
 import StatsPlans from '@/components/plans-correction/StatsPlans';
 import PlansCorrectionTable from '@/components/plans-correction/PlansCorrectionTable';
+import NewPlanModal from '@/components/plans-correction/NewPlanModal';
 
-export default async function PlansCorrectionPage() {
-  const session = await getServerSession(authOptions);
-  const role = session?.user?.role as string;
-
+export default function PlansCorrectionPage() {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Récupérez le rôle via un hook personnalisé ou localStorage
+  // Pour l'instant, je mets un exemple avec un état
+  const [role] = useState<string>('ADMIN'); // ou 'TECHNICIEN'
+  
   const isTechnicien = role === 'TECHNICIEN';
+
+  const handleSubmit = (data: any) => {
+    console.log('Nouveau plan:', data);
+    setIsModalOpen(false);
+  };
 
   return (
     <div className="space-y-8">
-      {/* En-tête dynamique */}
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-emerald-500/10 rounded-2xl">
@@ -37,7 +44,10 @@ export default async function PlansCorrectionPage() {
         </div>
 
         {!isTechnicien && (
-          <button className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-medium transition">
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-medium transition"
+          >
             <CheckSquare className="w-5 h-5" />
             Nouveau Plan
           </button>
@@ -56,6 +66,12 @@ export default async function PlansCorrectionPage() {
           </>
         )}
       </Suspense>
+
+      <NewPlanModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleSubmit}
+      />
     </div>
   );
 }

@@ -227,12 +227,12 @@ export default function PlansCorrectionTable({
                     {plan.assigne ? (
                       <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-lg w-fit">
                         <User className="w-4 h-4 text-emerald-400" />
-                        <span className="font-mono text-slate-200 text-sm">
-                          {plan.assigne.id}
+                        <span className="font-medium text-slate-100">
+                          {plan.assigne.prenom} {plan.assigne.nom}
                         </span>
                       </div>
                     ) : (
-                      <span className="text-slate-500 text-lg font-light">-</span>
+                      <span className="text-slate-500 text-3xl font-light">-</span>
                     )}
                   </td>
 

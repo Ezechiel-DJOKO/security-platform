@@ -9,40 +9,48 @@ export async function GET() {
       moyennes,
       basses,
       ouvertes,
+      enCours,           // ← Nouveau
     ] = await Promise.all([
       // Critiques
       prisma.vulnerabilite.count({
-        where: { 
+        where: {
           severite: 'CRITICAL',
-          deletedAt: null 
+          deletedAt: null
         }
       }),
       // Hautes
       prisma.vulnerabilite.count({
-        where: { 
+        where: {
           severite: 'HIGH',
-          deletedAt: null 
+          deletedAt: null
         }
       }),
       // Moyennes
       prisma.vulnerabilite.count({
-        where: { 
+        where: {
           severite: 'MEDIUM',
-          deletedAt: null 
+          deletedAt: null
         }
       }),
       // Basses
       prisma.vulnerabilite.count({
-        where: { 
+        where: {
           severite: 'LOW',
-          deletedAt: null 
+          deletedAt: null
         }
       }),
-      // Ouvertes (statut OUVERTE uniquement)
+      // Ouvertes
       prisma.vulnerabilite.count({
-        where: { 
+        where: {
           statut: 'OUVERTE',
-          deletedAt: null 
+          deletedAt: null
+        }
+      }),
+      // En Cours (Nouveau)
+      prisma.vulnerabilite.count({
+        where: {
+          statut: 'EN_COURS',
+          deletedAt: null
         }
       }),
     ]);
@@ -59,8 +67,10 @@ export async function GET() {
       moyennes,
       basses,
       ouvertes,
+      enCours,                    // ← Ajouté ici
       risqueMoyen: avgResult._avg?.scoreCVSS ?? 0,
     });
+
   } catch (error: any) {
     console.error('Erreur stats vulnérabilités:', error.message);
     
@@ -70,6 +80,7 @@ export async function GET() {
       moyennes: 0,
       basses: 0,
       ouvertes: 0,
+      enCours: 0,                 // ← Ajouté ici aussi
       risqueMoyen: 0,
     }, { status: 200 });
   }

@@ -109,21 +109,23 @@ async function createRemediationPlans(scanId: string): Promise<number> {
     if (vulnerabilites.length === 0) return 0;
 
     let createdCount = 0;
+
     for (const vuln of vulnerabilites) {
       await prisma.planCorrection.create({
         data: {
           idVulnerabilite: vuln.id,
-          assigneA: vuln.assigneA || vuln.scan?.lancerPar || "00000000-0000-0000-0000-000000000000",
+          assigneA: null,                    // ← Correction importante
           priorite: getPrioriteFromSeverite(vuln.severite),
           dateEcheance: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
           statut: 'A_FAIRE',
           commentaire: `Plan généré automatiquement après scan ${vuln.scan?.outil || 'automatique'}`,
         }
       });
+
       createdCount++;
-      console.log(`✅ Plan créé pour vulnérabilité ${vuln.titre} (${vuln.severite})`);
+      console.log(`✅ Plan créé pour vulnérabilité ${vuln.titre} (${vuln.severite}) - Non assigné`);
     }
-    
+
     console.log(`✅ ${createdCount} plans créés au total`);
     return createdCount;
   } catch (error) {
