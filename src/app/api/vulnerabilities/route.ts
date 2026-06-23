@@ -1,7 +1,6 @@
-// src/app/api/vulnerabilities/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from "next-auth/next";
+import { getServerSession } from "next-auth";
 import { authOptions } from '@/lib/auth';
 import { z } from 'zod';
 import { Prisma, Severite, StatutVulnerabilite } from '@prisma/client';
@@ -15,7 +14,7 @@ const vulnerabilitySchema = z.object({
   scoreCVSS: z.number().min(0).max(10).optional(),
   epssScore: z.number().min(0).max(1).optional(),
   vecteurCVSS: z.string().optional(),
-  statut: z.enum(['OUVERTE', 'EN_COURS']).default('OUVERTE'), // On limite ici
+  statut: z.enum(['OUVERTE', 'EN_COURS']).default('OUVERTE'),
   assigneA: z.string().uuid().optional().nullable(),
   preuve: z.string().optional(),
   impact: z.string().optional(),
@@ -28,32 +27,43 @@ function calculateRisqueRelatif(scoreCVSS: number | null, epssScore: number | nu
   let baseRisk = scoreCVSS;
   if (epssScore) baseRisk += epssScore * 4;
 
-  const severityMultiplier: Record<string, number> = { 
-    CRITICAL: 1.4, 
-    HIGH: 1.2, 
-    MEDIUM: 1.0, 
-    LOW: 0.7 
+  const severityMultiplier: Record<string, number> = {
+    CRITICAL: 1.4,
+    HIGH: 1.2,
+    MEDIUM: 1.0,
+    LOW: 0.7
   };
 
   const risque = baseRisk * (severityMultiplier[severite] || 1.0);
   return Math.min(Math.max(Math.round(risque * 10) / 10, 0), 10);
 }
 
-// GET
+// ====================== GET ======================
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  }
 
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get('page') || '1');
   const limit = parseInt(searchParams.get('limit') || '20');
   const skip = (page - 1) * limit;
 
+  const assigneA = searchParams.get('assigneA'); // "me" ou un ID
+
   const where: Prisma.VulnerabiliteWhereInput = {
     deletedAt: null,
   };
 
-  // Sévérité
+  // Filtrage pour le Technicien
+  if (assigneA === 'me') {
+    where.assigneA = session.user.id;
+  } else if (assigneA) {
+    where.assigneA = assigneA;
+  }
+
+  // Autres filtres existants
   const severiteParam = searchParams.get('severite');
   if (severiteParam) {
     const severites = severiteParam.split(',').filter((s): s is Severite =>
@@ -62,22 +72,18 @@ export async function GET(req: NextRequest) {
     if (severites.length > 0) where.severite = { in: severites };
   }
 
-  // Statut (CORRIGÉ)
   const statutParam = searchParams.get('statut');
   if (statutParam) {
-    const validStatuts: StatutVulnerabilite[] = statutParam
+    const validStatuts = statutParam
       .split(',')
       .map(s => s.trim().toUpperCase() as StatutVulnerabilite)
-      .filter((s): s is StatutVulnerabilite => 
-        ['OUVERTE', 'EN_COURS'].includes(s)
-      );
+      .filter(s => ['OUVERTE', 'EN_COURS', 'CORRIGEE'].includes(s));
 
     if (validStatuts.length > 0) {
       where.statut = { in: validStatuts };
     }
   }
 
-  // Autres filtres...
   const search = searchParams.get('search');
   if (search) {
     where.OR = [
@@ -92,7 +98,7 @@ export async function GET(req: NextRequest) {
       where,
       include: {
         scan: { select: { id: true, type: true, cible: true, outil: true } },
-        assigne: { select: { id: true, nom: true, prenom: true } },
+        assigne: { select: { id: true, nom: true, prenom: true, email: true } },
         tags: { include: { tag: true } },
       },
       orderBy: [
@@ -107,12 +113,13 @@ export async function GET(req: NextRequest) {
   ]);
 
   return NextResponse.json({
+    success: true,
     data: vulnerabilities,
     pagination: { page, limit, total, pages: Math.ceil(total / limit) }
   });
 }
 
-// POST (Import depuis scan)
+// ====================== POST ======================
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
@@ -130,7 +137,7 @@ export async function POST(req: NextRequest) {
     const vulnerability = await prisma.vulnerabilite.create({
       data: {
         ...validated,
-        statut: 'OUVERTE',        // Force OUVERTE à la création (import scan)
+        statut: 'OUVERTE',
         risqueRelatif,
         tags: validated.tags ? {
           create: validated.tags.map(name => ({

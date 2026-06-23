@@ -1,19 +1,32 @@
+// src/app/(dashboard)/dashboard/page.tsx
 import { Suspense } from 'react';
-import DashboardContent from '@/components/DashboardContent';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
-// Indique à Next.js de ne pas pré-rendre cette page lors de la phase de build
+import DashboardContent from '@/components/DashboardContent';
+import DashboardTechnicien from '@/components/dashboard/DashboardTechnicien'; // Nouveau composant dédié
+
 export const dynamic = 'force-dynamic';
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const session = await getServerSession(authOptions);
+  const role = session?.user?.role;
+
   return (
-    <Suspense 
-      fallback={
-        <div className="flex items-center justify-center h-96">
-          <p className="text-slate-400">Chargement du tableau de bord...</p>
-        </div>
-      }
-    >
-      <DashboardContent />
-    </Suspense>
+    <div className="p-6 lg:p-8 min-h-screen">
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center h-96">
+            <p className="text-slate-400">Chargement du tableau de bord...</p>
+          </div>
+        }
+      >
+        {role === 'TECHNICIEN' ? (
+          <DashboardTechnicien />
+        ) : (
+          <DashboardContent />   // Ton ancien composant (Admin / Autres rôles)
+        )}
+      </Suspense>
+    </div>
   );
 }

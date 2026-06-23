@@ -1,75 +1,61 @@
-'use client';
-import { useState } from 'react';
+// src/app/(dashboard)/plans-correction/page.tsx
+import { Suspense } from 'react';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { CheckSquare } from 'lucide-react';
+
+import PlansCorrectionTechnicien from '@/components/dashboard/PlansCorrectionTechnicien';
+
+// Import des composants Admin existants
 import StatsPlans from '@/components/plans-correction/StatsPlans';
 import PlansCorrectionTable from '@/components/plans-correction/PlansCorrectionTable';
-import { Button } from '@/components/ui/button';
-import { Plus, Search } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 
-export default function PlansCorrectionPage() {
-  const [filterStatus, setFilterStatus] = useState<string>('');
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+export default async function PlansCorrectionPage() {
+  const session = await getServerSession(authOptions);
+  const role = session?.user?.role as string;
 
-  const handleStatChange = () => {
-    setRefreshTrigger(prev => prev + 1);
-  };
+  const isTechnicien = role === 'TECHNICIEN';
 
   return (
-    <div className="space-y-8 p-6">
-      {/* En-tête */}
+    <div className="space-y-8">
+      {/* En-tête dynamique */}
       <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Plans de Correction</h1>
-          <p className="text-slate-400 mt-2">
-            Suivi et gestion des plans de correction des vulnérabilités
-          </p>
-        </div>
-        
-        <Button className="flex items-center gap-2">
-          <Plus className="w-5 h-5" />
-          Nouveau Plan
-        </Button>
-      </div>
-
-      {/* Statistiques */}
-      <StatsPlans onRefresh={handleStatChange} key={refreshTrigger} />
-
-      {/* Filtres */}
-      <div className="flex flex-col md:flex-row gap-4 bg-slate-900 border border-slate-800 p-4 rounded-2xl">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-3 text-slate-500" />
-          <Input
-            placeholder="Rechercher une vulnérabilité..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 bg-slate-950 border-slate-700"
-          />
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-emerald-500/10 rounded-2xl">
+            <CheckSquare className="h-8 w-8 text-emerald-400" />
+          </div>
+          <div>
+            <h1 className="text-4xl font-bold text-white">
+              {isTechnicien ? 'Mes Plans de Correction' : 'Plans de Correction'}
+            </h1>
+            <p className="text-slate-400 mt-2">
+              {isTechnicien 
+                ? 'Suivi de mes corrections assignées' 
+                : 'Suivi et gestion des plans de correction des vulnérabilités'}
+            </p>
+          </div>
         </div>
 
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-blue-500"
-        >
-          <option value="">Tous les statuts</option>
-          <option value="A_FAIRE">À faire</option>
-          <option value="EN_COURS">En cours</option>
-          <option value="TERMINE">Terminé</option>
-          <option value="VERIFIE">Vérifié</option>
-          <option value="ANNULE">Annulé</option>
-          <option value="EN_RETARD">En retard</option>
-        </select>
+        {!isTechnicien && (
+          <button className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-medium transition">
+            <CheckSquare className="w-5 h-5" />
+            Nouveau Plan
+          </button>
+        )}
       </div>
 
-      {/* Tableau */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
-        <PlansCorrectionTable
-          filterStatus={filterStatus}
-          searchTerm={searchTerm}
-          onStatChange={handleStatChange}
-        />
-      </div>
+      <Suspense fallback={<div className="py-20 text-center text-slate-400">Chargement des plans de correction...</div>}>
+        {isTechnicien ? (
+          <PlansCorrectionTechnicien />
+        ) : (
+          <>
+            <StatsPlans />
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+              <PlansCorrectionTable />
+            </div>
+          </>
+        )}
+      </Suspense>
     </div>
   );
 }

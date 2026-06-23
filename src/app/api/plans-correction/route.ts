@@ -1,22 +1,32 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { StatutPlan } from '@prisma/client';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const mesPlans = searchParams.get('mesPlans') === 'true';
+
+    let whereClause: any = {
+      vulnerabilite: {
+        deletedAt: null
+      }
+    };
+
+    // Filtrage pour le Technicien
+    if (mesPlans && session.user.role === 'TECHNICIEN') {
+      whereClause.assigneA = session.user.id;
+    }
+
     const plans = await prisma.planCorrection.findMany({
-      where: {
-        vulnerabilite: {
-          deletedAt: null
-        }
-      },
+      where: whereClause,
       include: {
         vulnerabilite: {
           select: {
@@ -28,7 +38,7 @@ export async function GET() {
             statut: true,
           }
         },
-        assigne: {                    // ← Relation correcte
+        assigne: {
           select: {
             id: true,
             nom: true,
@@ -46,8 +56,8 @@ export async function GET() {
     const plansAvecRetard = plans.map(plan => {
       const now = new Date();
       const dateEcheance = new Date(plan.dateEcheance);
-      const estEnRetard = 
-        !['TERMINE', 'VERIFIE', 'ANNULE'].includes(plan.statut) && 
+      const estEnRetard =
+        !['TERMINE', 'VERIFIE', 'ANNULE'].includes(plan.statut) &&
         dateEcheance < now;
 
       return {
@@ -62,7 +72,6 @@ export async function GET() {
       data: plansAvecRetard,
       count: plansAvecRetard.length
     });
-
   } catch (error) {
     console.error("Erreur GET /api/plans-correction:", error);
     return NextResponse.json(
@@ -72,7 +81,7 @@ export async function GET() {
   }
 }
 
-// POST - Création d'un plan de correction (lors de l'assignation d'une vulnérabilité)
+// POST - Création d'un plan de correction (Admin / Auditeur)
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -85,7 +94,7 @@ export async function POST(request: Request) {
     const plan = await prisma.planCorrection.create({
       data: {
         idVulnerabilite: body.idVulnerabilite,
-        assigneA: body.assigneA,           // ← Important : correspond à ton modèle Prisma
+        assigneA: body.assigneA,
         priorite: body.priorite || 'MOYENNE',
         dateEcheance: new Date(body.dateEcheance),
         statut: body.statut || StatutPlan.A_FAIRE,
@@ -102,7 +111,7 @@ export async function POST(request: Request) {
             statut: true
           }
         },
-        assigne: {                         // ← Important pour le frontend
+        assigne: {
           select: {
             id: true,
             nom: true,
@@ -117,7 +126,6 @@ export async function POST(request: Request) {
       success: true,
       data: plan
     }, { status: 201 });
-
   } catch (error) {
     console.error("Erreur POST /api/plans-correction:", error);
     return NextResponse.json({

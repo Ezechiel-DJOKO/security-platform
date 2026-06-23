@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import * as XLSX from 'xlsx';
 import puppeteer from 'puppeteer';
 
@@ -53,21 +55,27 @@ interface ExportData {
 }
 
 export async function GET(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const format = searchParams.get('format') || 'json';
+  const mesRapports = searchParams.get('mesRapports') === 'true';
 
   try {
-    const [vulnerabilities, controles] = await Promise.all([
-      prisma.vulnerabilite.findMany({
+    let vulnerabilities: any[] = [];
+    let controles: any[] = [];
+
+    if (mesRapports && session.user.role === 'TECHNICIEN') {
+      // ==================== VERSION TECHNICIEN ====================
+      vulnerabilities = await prisma.vulnerabilite.findMany({
         where: {
-          plan: {
-            statut: "VERIFIE"
-          }
+          assigneA: session.user.id,
         },
-        take: 100,
-        orderBy: { 
-          updatedAt: 'desc' 
-        },
+        take: 50,
+        orderBy: { updatedAt: 'desc' },
         select: {
           id: true,
           titre: true,
@@ -76,19 +84,43 @@ export async function GET(request: NextRequest) {
           statut: true,
           dateDecouverte: true,
         },
-      }),
+      });
 
-      prisma.controlConformite.findMany({
-        take: 100,
-        select: {
-          id: true,
-          code: true,
-          nom: true,
-          statut: true,
-          referentiel: true,
-        },
-      }),
-    ]);
+      controles = await prisma.controlConformite.findMany({
+        take: 30,
+        where: { statut: { not: 'NON_EVALUE' } },
+      });
+
+    } else {
+      // ==================== VERSION ADMIN / AUDITEUR / SUPERVISEUR ====================
+      [vulnerabilities, controles] = await Promise.all([
+        prisma.vulnerabilite.findMany({
+          where: {
+            plan: { statut: "VERIFIE" }
+          },
+          take: 100,
+          orderBy: { updatedAt: 'desc' },
+          select: {
+            id: true,
+            titre: true,
+            severite: true,
+            scoreCVSS: true,
+            statut: true,
+            dateDecouverte: true,
+          },
+        }),
+        prisma.controlConformite.findMany({
+          take: 100,
+          select: {
+            id: true,
+            code: true,
+            nom: true,
+            statut: true,
+            referentiel: true,
+          },
+        }),
+      ]);
+    }
 
     const recommendations = generateRecommendations(vulnerabilities, controles);
 
@@ -99,7 +131,9 @@ export async function GET(request: NextRequest) {
         format,
         totalVulnerabilites: vulnerabilities.length,
         totalControles: controles.length,
-        typeRapport: "Rapport des vulnérabilités vérifiées (Plan de Correction)",
+        typeRapport: mesRapports
+          ? "Rapport Personnel - Mes Corrections"
+          : "Rapport des vulnérabilités vérifiées (Plan de Correction)",
       },
       vulnerabilites: vulnerabilities,
       controles,
@@ -115,21 +149,21 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Erreur API Export:', error);
+    console.error('Erreur API Rapports:', error);
     const message = error instanceof Error ? error.message : 'Erreur inconnue';
     return NextResponse.json({ error: 'Erreur serveur', details: message }, { status: 500 });
   }
 }
 
-// ================== FONCTIONS UTILITAIRES ==================
+// ================== FONCTIONS UTILITAIRES (inchangées) ==================
 function generateRecommendations(vulnerabilities: any[], controles: any[]) {
   const recs: Recommandation[] = [];
-
+  
   recs.push({
     priorite: "BASSE",
-    titre: `Suivi des ${vulnerabilities.length} vulnérabilités vérifiées`,
-    description: "Ces vulnérabilités ont été validées dans le plan de correction.",
-    action: "Maintenir une surveillance régulière et programmer des scans périodiques.",
+    titre: `Suivi des ${vulnerabilities.length} vulnérabilités`,
+    description: "Vulnérabilités assignées ou vérifiées.",
+    action: "Maintenir une surveillance régulière.",
     delai: "Ongoing"
   });
 
@@ -143,7 +177,6 @@ function generateRecommendations(vulnerabilities: any[], controles: any[]) {
       delai: "Sous 15 jours"
     });
   }
-
   return recs;
 }
 
@@ -156,14 +189,10 @@ function groupBySeverity(vulns: any[]) {
   return stats;
 }
 
-// ✅ Amélioration du calcul de conformité
 function calculateConformite(controles: any[]) {
-  const controlesEvalues = controles.filter(c => 
-    c.statut && 
-    c.statut !== 'NON_EVALUE' && 
-    c.statut !== 'NON_EVAL' 
+  const controlesEvalues = controles.filter(c =>
+    c.statut && !['NON_EVALUE', 'NON_EVAL'].includes(c.statut)
   );
-
   const total = controlesEvalues.length;
   const conforme = controlesEvalues.filter(c => c.statut === 'CONFORME').length;
   const nonConforme = total - conforme;
