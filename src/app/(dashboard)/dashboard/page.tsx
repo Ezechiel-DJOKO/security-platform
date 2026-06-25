@@ -4,7 +4,9 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
 import DashboardContent from '@/components/DashboardContent';
-import DashboardTechnicien from '@/components/dashboard/DashboardTechnicien'; // Nouveau composant dédié
+import DashboardTechnicien from '@/components/dashboard/DashboardTechnicien';
+import DashboardAuditeur from '@/components/dashboard/DashboardAuditeur';
+import DashboardSuperviseur from '@/components/dashboard/DashboardSuperviseur';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +16,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-6 lg:p-8 min-h-screen">
+      {/* Supprimé : bg-slate-950 ici */}
       <Suspense
         fallback={
           <div className="flex items-center justify-center h-96">
@@ -23,8 +26,12 @@ export default async function DashboardPage() {
       >
         {role === 'TECHNICIEN' ? (
           <DashboardTechnicien />
+        ) : role === 'AUDITEUR' ? (
+          <DashboardAuditeur />
+        ) : role === 'SUPERVISEUR' ? (
+          <DashboardSuperviseur />
         ) : (
-          <DashboardContent />   // Ton ancien composant (Admin / Autres rôles)
+          <DashboardContent />
         )}
       </Suspense>
     </div>

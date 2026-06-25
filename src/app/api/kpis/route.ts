@@ -3,41 +3,33 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { subMonths, startOfMonth } from 'date-fns';
+import { subMonths, startOfMonth, endOfMonth } from 'date-fns';
+import { calculateGapAnalysis } from '@/lib/conformite/gapAnalysisService';
 
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: "Non authentifié" },
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, error: "Non authentifié" }, { status: 401 });
     }
 
-    // === Statistiques principales (optimisées avec Promise.all) ===
+    const userRole = session.user.role;
+
+    // === Calcul synchronisé de la conformité ===
+    const gapAnalysis = await calculateGapAnalysis();
+
+    // === Statistiques principales ===
     const [
       totalVulnerabilites,
       vulnsCritiques,
       vulnsCorrigees,
       cvssDistributionRaw,
-      lastScan
+      lastScan,
     ] = await Promise.all([
-      // Total vulnérabilités actives
+      prisma.vulnerabilite.count({ where: { deletedAt: null } }),
       prisma.vulnerabilite.count({
-        where: { deletedAt: null }
+        where: { deletedAt: null, severite: { in: ['HIGH', 'CRITICAL'] } }
       }),
-
-      // Vulnérabilités critiques (HIGH + CRITICAL)
-      prisma.vulnerabilite.count({
-        where: {
-          deletedAt: null,
-          severite: { in: ['HIGH', 'CRITICAL'] }
-        }
-      }),
-
-      // Vulnérabilités corrigées (derniers 60 jours par exemple)
       prisma.vulnerabilite.count({
         where: {
           deletedAt: null,
@@ -45,36 +37,28 @@ export async function GET(req: NextRequest) {
           updatedAt: { gte: subMonths(new Date(), 2) }
         }
       }),
-
-      // Distribution par sévérité (dynamique)
       prisma.vulnerabilite.groupBy({
         by: ['severite'],
         where: { deletedAt: null },
         _count: { id: true }
       }),
-
-      // Dernier scan pour info
-      prisma.scan?.findFirst?.({
+      prisma.scan.findFirst({
         orderBy: { createdAt: 'desc' },
-        select: { createdAt: true }
-      }) ?? null
+        select: { createdAt: true, type: true }
+      }),
     ]);
 
-    // Calcul du pourcentage
     const pourcentageCritiquesResolus = vulnsCritiques > 0
       ? Math.round((vulnsCorrigees / vulnsCritiques) * 100)
       : 0;
 
-    // === Distribution CVSS dynamique ===
+    // Distribution CVSS
     const severityColors: Record<string, string> = {
-      CRITICAL: '#ef4444',
-      HIGH: '#f97316',
-      MEDIUM: '#eab308',
-      LOW: '#22c55e',
+      CRITICAL: '#ef4444', HIGH: '#f97316', MEDIUM: '#eab308', LOW: '#22c55e'
     };
 
     const cvssDistribution = cvssDistributionRaw
-      .filter(item => item.severite) // sécurité
+      .filter(item => item.severite)
       .map(item => ({
         name: item.severite === 'CRITICAL' ? 'Critique' :
               item.severite === 'HIGH' ? 'Élevé' :
@@ -82,50 +66,45 @@ export async function GET(req: NextRequest) {
         value: item._count.id,
         color: severityColors[item.severite] || '#64748b'
       }))
-      .sort((a, b) => b.value - a.value); // tri descendant
+      .sort((a, b) => b.value - a.value);
 
-    // === Tendances temporelles (6 derniers mois) ===
+    // Tendances temporelles
     const temporalTrends = [];
     for (let i = 5; i >= 0; i--) {
       const date = subMonths(new Date(), i);
-      const monthName = date.toLocaleDateString('fr-FR', { month: 'short' });
+      const start = startOfMonth(date);
+      const end = endOfMonth(date);
 
       const vulnsThisMonth = await prisma.vulnerabilite.count({
         where: {
           deletedAt: null,
-          createdAt: {
-            gte: startOfMonth(date),
-            lt: startOfMonth(subMonths(date, -1))
-          }
+          createdAt: { gte: start, lte: end }
         }
       });
 
       temporalTrends.push({
-        mois: monthName.charAt(0).toUpperCase() + monthName.slice(1),
+        mois: date.toLocaleDateString('fr-FR', { month: 'short' }).charAt(0).toUpperCase() + 
+              date.toLocaleDateString('fr-FR', { month: 'short' }).slice(1),
         vulns: vulnsThisMonth,
-        scoreMoyen: Number((6.8 + Math.random() * 1.4).toFixed(1)) // À remplacer par vrai calcul CVSS moyen
+        scoreMoyen: 6.8,
       });
     }
-
-    // Score ISO 27001 (à remplacer par vraie logique plus tard)
-    const scoreISO27001 = Math.floor(68 + Math.random() * 22);
 
     const kpis = {
       totalVulnerabilites,
       vulnsCritiques,
       vulnsCorrigees,
       pourcentageCritiquesResolus,
-      delaiMoyenCorrection: 14,           // TODO: Calcul réel via dates de création/résolution
-      scoreISO27001,
-      lastUpdated: new Date(),
+      delaiMoyenCorrection: 14,
+      scoreISO27001: gapAnalysis.scoreGlobal,        // ← SYNCHRONISÉ
+      lastUpdated: new Date().toISOString(),
+      lastScan: lastScan?.createdAt || null,
       cvssDistribution,
       temporalTrends,
+      role: userRole,
     };
 
-    return NextResponse.json({
-      success: true,
-      data: kpis
-    });
+    return NextResponse.json({ success: true, data: kpis });
 
   } catch (error) {
     console.error('API KPIs Error:', error);

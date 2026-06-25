@@ -1,3 +1,4 @@
+// src/app/api/plans-correction/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -15,12 +16,9 @@ export async function GET(request: NextRequest) {
     const mesPlans = searchParams.get('mesPlans') === 'true';
 
     let whereClause: any = {
-      vulnerabilite: {
-        deletedAt: null
-      }
+      vulnerabilite: { deletedAt: null }
     };
 
-    // Si le technicien veut voir seulement ses plans
     if (mesPlans && session.user.role === 'TECHNICIEN') {
       whereClause.assigneA = session.user.id;
     }
@@ -34,28 +32,21 @@ export async function GET(request: NextRequest) {
             titre: true,
             severite: true,
             scoreCVSS: true,
-            cveId: true,
             statut: true,
           }
         },
         assigne: {
-          select: {
-            id: true,
-            nom: true,
-            prenom: true,
-            email: true,
-          }
+          select: { id: true, nom: true, prenom: true, email: true }
         }
       },
       orderBy: { createdAt: 'desc' }
     });
 
-    // Calcul du retard
     const plansAvecRetard = plans.map(plan => {
       const now = new Date();
       const dateEcheance = new Date(plan.dateEcheance);
-      const estEnRetard =
-        !['TERMINE', 'VERIFIE', 'ANNULE'].includes(plan.statut) &&
+      const estEnRetard = 
+        !['TERMINE', 'VERIFIE', 'ANNULE'].includes(plan.statut) && 
         dateEcheance < now;
 
       return {
@@ -70,39 +61,33 @@ export async function GET(request: NextRequest) {
       data: plansAvecRetard,
       count: plansAvecRetard.length
     });
-
   } catch (error) {
     console.error("Erreur GET /api/plans-correction:", error);
-    return NextResponse.json({ 
-      success: false, 
-      error: "Erreur serveur lors de la récupération des plans" 
+    return NextResponse.json({
+      success: false,
+      error: "Erreur serveur lors de la récupération des plans"
     }, { status: 500 });
   }
 }
 
-// POST - Création d'un ou plusieurs plans
-export async function POST(request: Request) {
+
+export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
-    // Vérification des droits (Admin ou Auditeur uniquement)
-    if (!['ADMIN', 'AUDITEUR'].includes(session.user.role as string)) {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    if (!['ADMIN', 'AUDITEUR'].includes(session.user.role)) {
+      return NextResponse.json({ 
+        error: "Seul l'Admin ou l'Auditeur peut créer un plan de correction" 
+      }, { status: 403 });
     }
 
     const body = await request.json();
 
-    if (!body.vulnerabiliteIds || body.vulnerabiliteIds.length === 0) {
+    if (!body.vulnerabiliteIds || !Array.isArray(body.vulnerabiliteIds) || body.vulnerabiliteIds.length === 0) {
       return NextResponse.json({ error: "Au moins une vulnérabilité est requise" }, { status: 400 });
-    }
-    if (!body.assigneA) {
-      return NextResponse.json({ error: "Le technicien est obligatoire" }, { status: 400 });
-    }
-    if (!body.dateEcheance) {
-      return NextResponse.json({ error: "La date d'échéance est obligatoire" }, { status: 400 });
     }
 
     const plansCrees = [];
@@ -115,7 +100,7 @@ export async function POST(request: Request) {
           priorite: body.priorite || 'HAUTE',
           dateEcheance: new Date(body.dateEcheance),
           statut: StatutPlan.A_FAIRE,
-          commentaire: body.description || body.commentaire || undefined,
+          commentaire: body.commentaire,
         },
         include: {
           vulnerabilite: true,
@@ -127,15 +112,15 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      data: plansCrees,
-      message: `${plansCrees.length} plan(s) de correction créé(s) avec succès`
+      message: `${plansCrees.length} plan(s) créé(s) avec succès`,
+      data: plansCrees
     }, { status: 201 });
 
   } catch (error: any) {
     console.error("Erreur POST /api/plans-correction:", error);
-    return NextResponse.json({ 
-      success: false, 
-      error: "Erreur serveur lors de la création du plan" 
+    return NextResponse.json({
+      success: false,
+      error: error.message || "Erreur lors de la création du plan"
     }, { status: 500 });
   }
 }

@@ -1,8 +1,38 @@
+// src/app/api/plans-correction/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { StatutPlan } from '@prisma/client';
+
+async function generateVerificationReport(planId: string, superviseurId: string) {
+  try {
+    const plan = await prisma.planCorrection.findUnique({
+      where: { id: planId },
+      include: { vulnerabilite: true, assigne: true }
+    });
+
+    if (!plan?.vulnerabilite) return;
+
+    const titre = `Vérification Correction - ${plan.vulnerabilite.titre.substring(0, 70)}${
+      plan.vulnerabilite.titre.length > 70 ? '...' : ''
+    }`;
+
+    await prisma.rapportAudit.create({
+      data: {
+        generePar: superviseurId,
+        idActif: plan.vulnerabilite.idScan 
+          ? (await prisma.scan.findUnique({ where: { id: plan.vulnerabilite.idScan }, select: { idActif: true } }))?.idActif || ""
+          : "",
+        titre,
+        description: `Validation de la correction par le superviseur. Statut final : ${plan.statut}`,
+        format: 'PDF',
+      },
+    });
+  } catch (err) {
+    console.error("Erreur génération rapport automatique:", err);
+  }
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -16,30 +46,41 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await req.json();
-
     const { statut, priorite, dateEcheance, commentaire } = body;
 
-    // Vérifier que le plan existe
     const planExistant = await prisma.planCorrection.findUnique({
       where: { id },
-      select: { 
-        assigneA: true, 
-        statut: true, 
-        idVulnerabilite: true 
-      }
+      select: { assigneA: true, statut: true, idVulnerabilite: true }
     });
 
     if (!planExistant) {
       return NextResponse.json({ error: "Plan non trouvé" }, { status: 404 });
     }
 
-    // Autorisation : Admin ou Technicien assigné
-    const isAdmin = session.user.role === 'ADMIN';
+    const userRole = session.user.role;
     const isAssigned = planExistant.assigneA === session.user.id;
 
-    if (!isAdmin && !isAssigned) {
+    // ==================== PERMISSIONS FINALES ====================
+    let hasPermission = false;
+
+    if (userRole === 'ADMIN') {
+      hasPermission = true;
+    } 
+    else if (userRole === 'AUDITEUR') {
+      hasPermission = isAssigned;                    // Auditeur peut modifier/annuler ses plans
+    } 
+    else if (userRole === 'TECHNICIEN') {
+      hasPermission = isAssigned && 
+        ['A_FAIRE', 'EN_COURS'].includes(planExistant.statut) &&
+        ['EN_COURS', 'TERMINE'].includes(statut || '');
+    } 
+    else if (userRole === 'SUPERVISEUR') {
+      hasPermission = planExistant.statut === 'TERMINE' && statut === 'VERIFIE';
+    }
+
+    if (!hasPermission) {
       return NextResponse.json({
-        error: "Vous n'êtes pas autorisé à modifier ce plan"
+        error: "Vous n'avez pas les permissions nécessaires pour cette action"
       }, { status: 403 });
     }
 
@@ -53,26 +94,27 @@ export async function PATCH(
         ...(commentaire !== undefined && { commentaire }),
         updatedAt: new Date(),
       },
-      include: {
-        vulnerabilite: true,
-        assigne: true
-      },
+      include: { vulnerabilite: true, assigne: true }
     });
 
-    // Mise à jour automatique du statut de la vulnérabilité
+    // Mise à jour de la vulnérabilité
     if (statut === 'TERMINE' || statut === 'VERIFIE') {
       await prisma.vulnerabilite.update({
         where: { id: plan.idVulnerabilite },
-        data: { statut: 'CORRIGEE', updatedAt: new Date() }
+        data: { statut: 'CORRIGEE', dateCorrection: new Date(), updatedAt: new Date() }
       });
     }
 
-    // Si le plan est annulé → on remet la vulnérabilité en ouverte
     if (statut === 'ANNULE') {
       await prisma.vulnerabilite.update({
         where: { id: plan.idVulnerabilite },
         data: { statut: 'OUVERTE', updatedAt: new Date() }
       });
+    }
+
+    // Rapport automatique si Superviseur valide
+    if (statut === 'VERIFIE' && userRole === 'SUPERVISEUR') {
+      await generateVerificationReport(plan.id, session.user.id);
     }
 
     return NextResponse.json({
@@ -111,20 +153,18 @@ export async function DELETE(
       return NextResponse.json({ error: "Plan non trouvé" }, { status: 404 });
     }
 
-    // Autorisation : Seul l'Admin peut supprimer
-    const isAdmin = session.user.role === 'ADMIN';
-    if (!isAdmin) {
+    const userRole = session.user.role;
+    const isAssigned = plan.assigneA === session.user.id;
+
+    // Seuls Admin et Auditeur peuvent supprimer leurs plans
+    if (userRole !== 'ADMIN' && !(userRole === 'AUDITEUR' && isAssigned)) {
       return NextResponse.json({
-        error: "Seul un administrateur peut supprimer un plan"
+        error: "Vous n'avez pas le droit de supprimer ce plan"
       }, { status: 403 });
     }
 
-    // Suppression du plan
-    await prisma.planCorrection.delete({
-      where: { id }
-    });
+    await prisma.planCorrection.delete({ where: { id } });
 
-    // Optionnel : Remettre la vulnérabilité en OUVERTE après suppression
     await prisma.vulnerabilite.update({
       where: { id: plan.idVulnerabilite },
       data: { statut: 'OUVERTE', updatedAt: new Date() }

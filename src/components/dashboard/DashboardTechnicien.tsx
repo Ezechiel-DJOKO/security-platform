@@ -5,7 +5,7 @@ import { LayoutDashboard, CheckSquare, Bug, FileText } from 'lucide-react';
 import StatsGenerales from './StatsGenerales';
 import VulnerabilitesTechnicien from './VulnerabilitesTechnicien';
 import MesTachesTechnicien from './MesTachesTechnicien';
-import RapportsTechnicien from './RapportsTechnicien';
+import RapportsTechnicien from '../rapports/RapportsTechnicien';
 
 export default function DashboardTechnicien() {
   const { data: session } = useSession();

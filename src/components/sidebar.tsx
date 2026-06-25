@@ -42,14 +42,15 @@ const menuConfig = {
     { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
     { href: '/scans', label: 'Scans', icon: ScanLine },
     { href: '/vulnerabilites', label: 'Vulnérabilités', icon: Bug },
+    { href: '/plans-correction', label: 'Plans de correction', icon: CheckSquare },
     { href: '/rapports', label: 'Rapports', icon: FileText },
     { href: '/conformite', label: 'Conformité', icon: ShieldCheck },
   ],
 
   TECHNICIEN: [
     { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
-    { href: '/mes-taches', label: 'Mes Tâches', icon: UserCheck },
     { href: '/vulnerabilites', label: 'Vulnérabilités Assignées', icon: Bug },
+    { href: '/mes-taches', label: 'Mes Tâches', icon: UserCheck },
     { href: '/plans-correction', label: 'Plans de correction', icon: CheckSquare },
     { href: '/rapports', label: 'Rapports', icon: FileText },
   ],

@@ -4,8 +4,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { FileText } from 'lucide-react';
 
-import RapportsContent from '@/components/RapportsContent';           // Version Admin existante
-import RapportsTechnicien from '@/components/dashboard/RapportsTechnicien';
+import RapportsSuperviseur from '@/components/rapports/RapportsSuperviseur';
+import RapportsAuditeur from '@/components/rapports/RapportsAuditeur';
+import RapportsTechnicien from '@/components/rapports/RapportsTechnicien';
+import RapportsAdmin from '@/components/rapports/RapportsAdmin';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,23 +15,23 @@ export default async function RapportsPage() {
   const session = await getServerSession(authOptions);
   const role = session?.user?.role as string;
 
-  const isTechnicien = role === 'TECHNICIEN';
-
   return (
-    <div className="space-y-8">
-      {/* En-tête dynamique */}
+    <div className="space-y-8 p-6 lg:p-8">
       <div className="flex items-center gap-4">
         <div className="p-3 bg-purple-500/10 rounded-2xl">
           <FileText className="h-8 w-8 text-purple-400" />
         </div>
         <div>
           <h1 className="text-4xl font-bold text-white">
-            {isTechnicien ? 'Mes Rapports' : 'Rapports d\'Audit'}
+            {role === 'TECHNICIEN' ? 'Mes Rapports' : 
+             role === 'AUDITEUR' ? 'Rapports d\'Audit' :
+             role === 'SUPERVISEUR' ? 'Rapports de Pilotage' : 
+             'Rapports & Analyses'}
           </h1>
           <p className="text-slate-400 mt-1">
-            {isTechnicien 
-              ? "Rapports liés à vos vulnérabilités et corrections" 
-              : "Gestion et consultation des rapports de sécurité"}
+            {role === 'TECHNICIEN' 
+              ? "Rapports liés à vos vulnérabilités et corrections"
+              : "Analyse et suivi de la posture de sécurité"}
           </p>
         </div>
       </div>
@@ -37,14 +39,18 @@ export default async function RapportsPage() {
       <Suspense
         fallback={
           <div className="flex items-center justify-center h-96">
-            <p className="text-slate-400">Chargement du module de rapports...</p>
+            <p className="text-slate-400">Chargement des rapports...</p>
           </div>
         }
       >
-        {isTechnicien ? (
+        {role === 'TECHNICIEN' ? (
           <RapportsTechnicien />
+        ) : role === 'AUDITEUR' ? (
+          <RapportsAuditeur />
+        ) : role === 'SUPERVISEUR' ? (
+          <RapportsSuperviseur />
         ) : (
-          <RapportsContent />
+          <RapportsAdmin />   // Version complète avec graphiques
         )}
       </Suspense>
     </div>

@@ -100,7 +100,7 @@ model Vulnerabilite {
   deletedAt        DateTime?
 
   historiques      HistoriqueVulnerabilite[] @relation("HistoriqueVulnerabilite")
-  plan             PlanCorrection?
+  plan             PlanCorrection[]
   tags             TagVulnerabilite[]
   controles        VulnerabiliteControl[]
   
@@ -115,7 +115,7 @@ model Vulnerabilite {
 
 model PlanCorrection {
   id                String   @id @default(uuid()) @db.Uuid
-  idVulnerabilite   String   @unique @db.Uuid
+  idVulnerabilite   String   @db.Uuid
   assigneA          String?  @db.Uuid
   priorite          Priorite
   dateEcheance      DateTime

@@ -1,3 +1,4 @@
+// src/components/dashboard/KPICards.tsx
 'use client';
 import { TrendingUp, Clock, Target, AlertTriangle, Shield } from "lucide-react";
 
@@ -9,8 +10,8 @@ interface KpiCardsProps {
     pourcentageCritiquesResolus: number;
     delaiMoyenCorrection: number;
     scoreISO27001: number;
-    lastUpdated?: Date;
-  };
+    lastUpdated?: string;        // Changé en string (car l'API renvoie ISO string)
+  } | null;
   isLoading?: boolean;
 }
 

@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { ClientLayout } from "@/components/providers/ClientLayout"; // Ajuste le chemin si nécessaire
+import { ClientLayout } from "@/components/providers/ClientLayout";
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: "Security Platform",
@@ -16,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr" suppressHydrationWarning>
+    <html lang="fr" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
       <body>
         <ClientLayout>{children}</ClientLayout>
       </body>
