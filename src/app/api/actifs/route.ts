@@ -33,15 +33,14 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Correction importante : on garde la date brute (ISO)
     const formatted = actifs.map((a) => ({
       id: a.id,
       nom: a.nom,
       type: a.type,
       adresseIP: a.adresseIP,
       criticite: a.criticite,
-      dernierScan: a.dernierScan 
-        ? new Date(a.dernierScan).toLocaleDateString('fr-FR') 
-        : 'Jamais',
+      dernierScan: a.dernierScan ? a.dernierScan.toISOString() : null, // ← Important
     }));
 
     await logAuditEvent(session.user.id, "LECTURE", "ACTIF", { count: formatted.length }).catch(() => {});
@@ -53,6 +52,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// Les autres méthodes (POST, PUT, DELETE) restent identiques
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -81,7 +81,6 @@ export async function PUT(req: NextRequest) {
 
     const body = await req.json();
     const { id } = body;
-
     if (!id) {
       return NextResponse.json({ error: "ID requis" }, { status: 400 });
     }

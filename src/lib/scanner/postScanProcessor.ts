@@ -1,6 +1,6 @@
 // src/lib/scanner/postScanProcessor.ts
 import { prisma } from '@/lib/prisma';
-import { Severite, StatutVulnerabilite, Priorite } from '@prisma/client';
+import { Severite, StatutVulnerabilite } from '@prisma/client';
 
 interface RawVulnerability {
   cveId?: string;
@@ -42,23 +42,32 @@ export async function processScanResults(scanId: string): Promise<{ mappingsCrea
 
   console.log(`📊 ${scan.vulnerabilites.length} vulnérabilités déjà enregistrées`);
 
-  // Si aucune vulnérabilité n'a été créée par le Python, on parse le résultat brut
   if (scan.vulnerabilites.length === 0 && scan.resultatBrut) {
     await parseAndCreateVulnerabilities(scanId, scan.resultatBrut as RawResults);
   }
 
-  // === PLUS DE CRÉATION AUTOMATIQUE DE PLANS ===
-  console.log(`✅ Post-traitement terminé pour le scan ${scanId} - Aucuns plans créés automatiquement`);
+  // ====================== MISE À JOUR DERNIER SCAN ======================
+  try {
+    const now = new Date();
+    const updatedActif = await prisma.actif.update({
+      where: { id: scan.idActif },
+      data: { dernierScan: now },
+      select: { nom: true }
+    });
 
+    console.log(`✅ dernierScan mis à jour avec succès pour l'actif ${updatedActif.nom} → ${now.toLocaleString('fr-FR')}`);
+  } catch (err: any) {
+    console.error("❌ Erreur mise à jour dernierScan :", err.message);
+  }
+  // =====================================================================
+
+  console.log(`✅ Post-traitement terminé pour le scan ${scanId}`);
   return { mappingsCreated: 0 };
 }
 
+// Les deux fonctions en bas restent identiques
 async function parseAndCreateVulnerabilities(scanId: string, rawResults: RawResults) {
-  const vulnerabilities = rawResults.data ||
-                         rawResults.vulnerabilities ||
-                         rawResults.results ||
-                         (Array.isArray(rawResults) ? rawResults : []);
-
+  const vulnerabilities = rawResults.data || rawResults.vulnerabilities || rawResults.results || (Array.isArray(rawResults) ? rawResults : []);
   const vulnArray = Array.isArray(vulnerabilities) ? vulnerabilities : [];
 
   console.log(`📥 Parsing de ${vulnArray.length} vulnérabilités brutes`);

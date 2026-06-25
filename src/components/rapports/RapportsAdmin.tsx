@@ -96,14 +96,7 @@ export default function RapportsAdmin() {
   return (
     <div className="space-y-10">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-        <div>
-          <h1 className="text-4xl font-bold text-white tracking-tight">Rapports & Analyses</h1>
-          <p className="text-slate-400 mt-2 text-lg">
-            Suivi complet de la sécurité et performance de correction
-          </p>
-        </div>
-
+      <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-6">
         <div className="flex flex-wrap gap-3">
           <button
             onClick={() => exportReport('json')}

@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Eye } from 'lucide-react';
 import { Severite } from '@prisma/client';
+import VulnerabilityDetailModal from './VulnerabilityDetailModal'; // ← Ajuste le chemin si nécessaire
 
 interface Vulnerability {
   id: string;
@@ -32,6 +33,11 @@ export function VulnerabilitiesTable() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [severiteFilter, setSeveriteFilter] = useState('');
+  
+  // États pour le modal
+  const [selectedVuln, setSelectedVuln] = useState<Vulnerability | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const isFirstRender = useRef(true);
 
   const fetchVulnerabilities = useCallback(async () => {
@@ -70,10 +76,14 @@ export function VulnerabilitiesTable() {
       fetchVulnerabilities();
       return;
     }
-
     const timer = setTimeout(fetchVulnerabilities, 300);
     return () => clearTimeout(timer);
   }, [search, severiteFilter, fetchVulnerabilities]);
+
+  const openDetails = (vuln: Vulnerability) => {
+    setSelectedVuln(vuln);
+    setIsModalOpen(true);
+  };
 
   const getSeveriteClass = (severite: Severite | null) => {
     switch (severite) {
@@ -112,7 +122,6 @@ export function VulnerabilitiesTable() {
           <option value="MEDIUM">Moyenne</option>
           <option value="LOW">Basse</option>
         </select>
-
         <button
           onClick={fetchVulnerabilities}
           className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
@@ -131,18 +140,19 @@ export function VulnerabilitiesTable() {
               <th className="p-4">Sévérité</th>
               <th className="p-4">CVSS</th>
               <th className="p-4">Risque Relatif</th>
+              <th className="p-4 w-16 text-center">Détails</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
             {loading && vulnerabilities.length === 0 ? (
               <tr>
-                <td colSpan={4} className="p-8 text-center text-slate-500">
+                <td colSpan={5} className="p-8 text-center text-slate-500">
                   Chargement des vulnérabilités...
                 </td>
               </tr>
             ) : vulnerabilities.length === 0 ? (
               <tr>
-                <td colSpan={4} className="p-8 text-center text-slate-500">
+                <td colSpan={5} className="p-8 text-center text-slate-500">
                   Aucune vulnérabilité trouvée.
                 </td>
               </tr>
@@ -172,12 +182,31 @@ export function VulnerabilitiesTable() {
                       {vuln.risqueRelatif?.toFixed(1) ?? '-'}
                     </span>
                   </td>
+                  <td className="p-4 text-center">
+                    <button
+                      onClick={() => openDetails(vuln)}
+                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-blue-500 hover:text-blue-600 transition-colors"
+                      title="Voir les détails complets"
+                    >
+                      <Eye className="w-5 h-5" />
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+
+      {/* Modal de détails */}
+      <VulnerabilityDetailModal
+        open={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedVuln(null);
+        }}
+        vulnerability={selectedVuln}
+      />
     </div>
   );
 }

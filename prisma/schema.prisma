@@ -263,7 +263,7 @@ model KpiHistory {
   date                      DateTime @unique @default(now())
   pourcentageCritiquesResolus Float @default(0)
   delaiMoyenCorrection      Float   @default(0)
-  scoreISO27001             Float   @default(0)
+  scoreISO27001             Int   @default(0)
   totalVulnerabilites       Int     @default(0)
   vulnsCritiques            Int     @default(0)
   vulnsCorrigees            Int     @default(0)

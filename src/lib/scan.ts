@@ -119,18 +119,42 @@ function mapSeverity(sev: string | undefined): Severite {
   return Severite.LOW;
 }
 
-// ==================== POST-PROCESSING (SANS PLANS AUTO) ====================
+// ==================== POST-PROCESSING ====================
 async function postScanProcessing(scanId: string) {
   try {
     console.log(`📥 Début du post-traitement pour le scan ${scanId}...`);
 
+    const scan = await prisma.scan.findUnique({
+      where: { id: scanId },
+      include: { actif: true }
+    });
+
+    if (!scan) {
+      console.error("Scan non trouvé dans postScanProcessing");
+      return;
+    }
+
+    const now = new Date();
+
     // Mise à jour du statut du scan
     await prisma.scan.update({
       where: { id: scanId },
-      data: { statut: StatutScan.TERMINE, fin: new Date() }
+      data: { 
+        statut: StatutScan.TERMINE, 
+        fin: now 
+      }
+    });
+
+    // ✅ MISE À JOUR DU DERNIER SCAN DE L'ACTIF
+    await prisma.actif.update({
+      where: { id: scan.idActif },
+      data: { 
+        dernierScan: now 
+      }
     });
 
     console.log(`✅ [SCAN SUCCESS] Scan ${scanId} terminé avec succès`);
+    console.log(`🕒 dernierScan mis à jour pour ${scan.actif.nom} → ${now.toLocaleString('fr-FR')}`);
 
     await sendScanCompletionAlert(scanId);
 

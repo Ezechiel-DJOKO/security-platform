@@ -76,11 +76,24 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // 2. Lancement de l'orchestration (scan + détection de vulnérabilités)
+    // 2. Lancement asynchrone du scan
     setTimeout(() => {
-      orchestrateScan(scan.id).catch((error) => {
-        console.error(`Erreur orchestration scan ${scan.id}:`, error);
-      });
+      orchestrateScan(scan.id)
+        .then(async (result) => {
+          // ✅ MISE À JOUR DU DERNIER SCAN SUR L'ACTIF
+          if (result?.success) {
+            await prisma.actif.update({
+              where: { id: idActif },
+              data: { 
+                dernierScan: new Date() 
+              }
+            });
+            console.log(`✅ DernierScan mis à jour pour l'actif ${idActif}`);
+          }
+        })
+        .catch((error) => {
+          console.error(`Erreur orchestration scan ${scan.id}:`, error);
+        });
     }, 800);
 
     return NextResponse.json({

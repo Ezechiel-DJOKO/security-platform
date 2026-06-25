@@ -1,119 +1,87 @@
-// src/lib/scanner/scanOrchestrator.ts
 import { prisma } from '@/lib/prisma';
 import { StatutScan } from '@prisma/client';
 import { startOpenvasScan } from './openvas';
 import { processScanResults } from './postScanProcessor';
 import { sendAlert } from '@/lib/alertService';
 
-interface OpenVASResult {
-  raw: unknown;
-  jobId: string;
-}
-
-interface ScanMetadata {
-  openvasJobId?: string;
-  [key: string]: unknown;
-}
-
-interface OrchestrationError extends Error {
-  message: string;
-}
-
 export async function orchestrateScan(scanId: string) {
-  console.log(`🚀 Orchestration du scan ${scanId} selon diagramme Flux 1`);
+  console.log(`🚀 [ORCHESTRATOR] Début orchestration scan ${scanId}`);
 
   try {
-    // 1. Passage en EN_COURS
+    // 1. Mise en cours
     await prisma.scan.update({
       where: { id: scanId },
-      data: {
-        statut: StatutScan.EN_COURS,
-        debut: new Date()
-      }
+      data: { statut: StatutScan.EN_COURS, debut: new Date() }
     });
 
     const scan = await prisma.scan.findUnique({
       where: { id: scanId },
-      include: {
-        actif: true,
-        utilisateur: true
-      }
+      include: { actif: true }
     });
 
     if (!scan) throw new Error("Scan non trouvé");
 
-    // 2. Lancement du scan OpenVAS
-    console.log(`📡 Démarrage scan OpenVAS sur ${scan.cible}`);
+    console.log(`📡 [ORCHESTRATOR] Lancement scan sur ${scan.cible || scan.actif.adresseIP}`);
+
+    // 2. Lancement du scan (OpenVAS ou autre)
     const openvasResult = await startOpenvasScan(
-      scan.cible || scan.actif.adresseIP || "", 
+      scan.cible || scan.actif.adresseIP || "",
       scan.id
     );
 
-    // 3. Mise à jour des résultats bruts
-    const currentMetadata = scan.metadata as ScanMetadata || {};
-    await prisma.scan.update({
-      where: { id: scanId },
-      data: {
-        resultatBrut: openvasResult.raw || null,
-        metadata: {
-          ...currentMetadata,
-          openvasJobId: openvasResult.jobId
-        }
-      }
-    });
-
-    // 4. Post-traitement (création / mise à jour des vulnérabilités)
+    // 3. Post-traitement
     await processScanResults(scanId);
 
-    // 5. Finalisation du scan
+    // 4. FINALISATION + MISE À JOUR DERNIER SCAN
+    const finScan = new Date();
+
+    console.log(`🔄 [ORCHESTRATOR] Finalisation du scan ${scanId}`);
+
     await prisma.scan.update({
       where: { id: scanId },
       data: {
         statut: StatutScan.TERMINE,
-        fin: new Date(),
-        duree: Math.floor((Date.now() - scan.debut!.getTime()) / 1000)
+        fin: finScan,
+        duree: Math.floor((finScan.getTime() - scan.debut!.getTime()) / 1000)
       }
     });
 
-    // 6. Envoi des alertes (sans créer de plans)
-    const criticalVulnsCount = await prisma.vulnerabilite.count({
-      where: {
-        idScan: scanId,
-        severite: { in: ['CRITICAL', 'HIGH'] }
-      }
+    // Mise à jour critique de l'actif
+    try {
+      const updated = await prisma.actif.update({
+        where: { id: scan.idActif },
+        data: { dernierScan: finScan },
+        select: { nom: true, dernierScan: true }
+      });
+
+      console.log(`✅ [SUCCESS] dernierScan mis à jour pour ${updated.nom}`);
+      console.log(`   → ${updated.dernierScan?.toLocaleString('fr-FR')}`);
+    } catch (err: any) {
+      console.error(`❌ [ERROR] Échec mise à jour dernierScan:`, err.message);
+    }
+
+    // Alertes
+    const criticalCount = await prisma.vulnerabilite.count({
+      where: { idScan: scanId, severite: { in: ['CRITICAL', 'HIGH'] } }
     });
 
     await sendAlert({
       scanId,
       type: 'SCAN_COMPLETED',
-      message: `Scan terminé sur ${scan.actif.nom} - ${criticalVulnsCount} vulnérabilités critiques détectées`,
-      severity: criticalVulnsCount > 0 ? 'CRITICAL' : 'INFO',
+      message: `Scan terminé sur ${scan.actif.nom} - ${criticalCount} vulnérabilités critiques`,
+      severity: criticalCount > 0 ? 'CRITICAL' : 'INFO',
       userId: scan.lancerPar
     });
 
-    console.log(`✅ Orchestration terminée avec succès pour le scan ${scanId}`);
+    console.log(`✅ [ORCHESTRATOR] Orchestration terminée avec succès pour ${scanId}`);
     return { success: true, scanId };
 
-  } catch (error) {
-    const err = error as OrchestrationError;
-    console.error("❌ Erreur orchestration:", err);
-
+  } catch (error: any) {
+    console.error(`❌ [ORCHESTRATOR] Erreur:`, error.message);
     await prisma.scan.update({
       where: { id: scanId },
-      data: {
-        statut: StatutScan.ECHEC,
-        erreur: err.message,
-        fin: new Date()
-      }
+      data: { statut: StatutScan.ECHEC, erreur: error.message, fin: new Date() }
     });
-
-    await sendAlert({
-      scanId,
-      type: 'ERROR',
-      message: `Échec du scan ${scanId}: ${err.message}`,
-      severity: 'CRITICAL'
-    });
-
-    return { success: false, error: err.message };
+    return { success: false, error: error.message };
   }
 }

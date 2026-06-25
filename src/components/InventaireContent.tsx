@@ -6,6 +6,10 @@ import { DataTable } from '@/components/common/DataTable';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import ActifModal from './actifs/ActifModal';
 
+// Import pour le formatage des dates
+import { formatDistanceToNow } from 'date-fns';
+import { fr } from 'date-fns/locale';
+
 interface Actif {
   id: string;
   nom: string;
@@ -26,7 +30,6 @@ interface ActifFormData {
 
 export default function InventaireContent() {
   const { data: session, status } = useSession();
-  
   const [actifs, setActifs] = useState<Actif[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -55,18 +58,15 @@ export default function InventaireContent() {
     }
   }, [searchTerm, filterCriticite]);
 
-  // Use effect with proper mount/unmount handling
   useEffect(() => {
     let isMounted = true;
-    
     const loadActifs = async () => {
       if (isMounted) {
         await fetchActifs();
       }
     };
-    
     loadActifs();
-    
+
     return () => {
       isMounted = false;
     };
@@ -100,7 +100,6 @@ export default function InventaireContent() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Voulez-vous vraiment supprimer cet actif ?")) return;
-
     try {
       const res = await fetch('/api/actifs', {
         method: 'DELETE',
@@ -182,7 +181,30 @@ export default function InventaireContent() {
               accessor: (actif) => <StatusBadge status={actif.criticite} />,
               header: 'Criticité'
             },
-            { accessor: 'dernierScan', header: 'Dernier Scan' },
+            {
+              accessor: (actif: Actif) => {
+                if (!actif.dernierScan) {
+                  return <span className="text-amber-500 italic">Jamais scanné</span>;
+                }
+
+                const date = new Date(actif.dernierScan);
+                if (isNaN(date.getTime())) {
+                  return <span className="text-red-400">Date invalide</span>;
+                }
+
+                return (
+                  <div className="space-y-1">
+                    <div className="font-medium text-emerald-400">
+                      {date.toLocaleDateString('fr-FR')} à {date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      il y a {formatDistanceToNow(date, { locale: fr, addSuffix: true })}
+                    </div>
+                  </div>
+                );
+              },
+              header: 'Dernier Scan'
+            },
             {
               accessor: (actif) => (
                 <div className="flex gap-2">

@@ -129,21 +129,7 @@ export default function ConformiteContent() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Gap Analysis ISO 27001</h1>
-          <p className="text-slate-400 mt-2">Évaluation de la conformité par domaine</p>
-        </div>
-        <Button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          variant="outline"
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-          Actualiser
-        </Button>
-      </div>
+      
 
       {/* Score Global */}
       <div className="bg-gradient-to-br from-slate-950 to-slate-900 border border-slate-700 rounded-3xl p-10 text-center">
