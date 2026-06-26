@@ -48,10 +48,10 @@ const menuConfig = {
   ],
   TECHNICIEN: [
     { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
-    { href: '/vulnerabilites', label: 'Vulnérabilités Assignées', icon: Bug },
     { href: '/mes-taches', label: 'Mes Tâches', icon: UserCheck },
     { href: '/plans-correction', label: 'Plans de correction', icon: CheckSquare },
     { href: '/rapports', label: 'Rapports', icon: FileText },
+
   ],
 } as const;
 

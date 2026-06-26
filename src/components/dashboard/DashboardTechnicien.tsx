@@ -1,9 +1,7 @@
 'use client';
 import { useSession } from 'next-auth/react';
-import { LayoutDashboard, CheckSquare, Bug, FileText } from 'lucide-react';
-
+import { LayoutDashboard, CheckSquare, FileText } from 'lucide-react';
 import StatsGenerales from './StatsGenerales';
-import VulnerabilitesTechnicien from './VulnerabilitesTechnicien';
 import MesTachesTechnicien from './MesTachesTechnicien';
 import RapportsTechnicien from '../rapports/RapportsTechnicien';
 
@@ -29,35 +27,21 @@ export default function DashboardTechnicien() {
       {/* Statistiques */}
       <StatsGenerales />
 
-      {/* Contenu Principal */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-        {/* Mes Tâches */}
-        <div className="xl:col-span-7 bg-slate-950 border border-slate-800 rounded-3xl p-6 lg:p-8">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold flex items-center gap-3">
-              <CheckSquare className="text-emerald-400 h-6 w-6" />
-              Mes Tâches de Correction
-            </h2>
-            <a href="/mes-taches" className="text-blue-400 hover:underline text-sm font-medium">
-              Voir tout →
-            </a>
-          </div>
-          <MesTachesTechnicien />
+      {/* Mes Tâches de Correction - Pleine largeur */}
+      <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 lg:p-8">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-semibold flex items-center gap-3">
+            <CheckSquare className="text-emerald-400 h-6 w-6" />
+            Mes Tâches de Correction
+          </h2>
+          <a 
+            href="/mes-taches" 
+            className="text-blue-400 hover:underline text-sm font-medium"
+          >
+            Voir tout →
+          </a>
         </div>
-
-        {/* Vulnérabilités Assignées */}
-        <div className="xl:col-span-5 bg-slate-950 border border-slate-800 rounded-3xl p-6 lg:p-8">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold flex items-center gap-3">
-              <Bug className="text-red-400 h-6 w-6" />
-              Vulnérabilités Assignées
-            </h2>
-            <a href="/vulnerabilites" className="text-blue-400 hover:underline text-sm font-medium">
-              Voir tout →
-            </a>
-          </div>
-          <VulnerabilitesTechnicien />
-        </div>
+        <MesTachesTechnicien />
       </div>
 
       {/* Derniers Rapports */}
@@ -67,7 +51,10 @@ export default function DashboardTechnicien() {
             <FileText className="text-purple-400 h-6 w-6" />
             Derniers Rapports
           </h2>
-          <a href="/rapports" className="text-blue-400 hover:underline text-sm font-medium">
+          <a 
+            href="/rapports" 
+            className="text-blue-400 hover:underline text-sm font-medium"
+          >
             Tous les rapports →
           </a>
         </div>

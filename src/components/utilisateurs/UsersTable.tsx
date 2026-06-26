@@ -1,13 +1,12 @@
 'use client';
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Edit3, Trash2, UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 type Utilisateur = {
   id: string;
-  nomUtilisateur: string;
-  prenomUtilisateur: string;
+  nomUtilisateur: string;      // ou nom
+  prenomUtilisateur: string;   // ou prenom
   email: string;
   role: string;
   actif: boolean;
@@ -19,16 +18,13 @@ export default function UsersTable() {
   const [loading, setLoading] = useState(true);
   const isMountedRef = useRef(true);
 
-  // Define fetchUsers BEFORE using it in useEffect
   const fetchUsers = useCallback(async () => {
     if (!isMountedRef.current) return;
-    
     try {
       const res = await fetch('/api/utilisateurs', { cache: 'no-store' });
       if (!res.ok) throw new Error('Erreur');
       const data = await res.json();
-      
-      // Only update state if component is still mounted
+
       if (isMountedRef.current) {
         setUsers(data);
         setLoading(false);
@@ -42,16 +38,10 @@ export default function UsersTable() {
     }
   }, []);
 
-  // Now useEffect can safely use fetchUsers with proper mount handling
   useEffect(() => {
     isMountedRef.current = true;
-    
-    const loadUsers = async () => {
-      await fetchUsers();
-    };
-    
-    loadUsers();
-    
+    fetchUsers();
+
     return () => {
       isMountedRef.current = false;
     };
@@ -117,15 +107,15 @@ export default function UsersTable() {
                 </td>
                 <td className="px-6 py-4 text-slate-300">{user.email}</td>
                 <td className="px-6 py-4">
-                  <select 
+                  <select
                     value={user.role}
                     onChange={(e) => changeRole(user.id, e.target.value)}
                     className="bg-slate-900 border border-slate-700 rounded px-3 py-1 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                    aria-label={`Changer le rôle de ${user.prenomUtilisateur}`}
                   >
                     <option value="ADMIN">Administrateur</option>
                     <option value="SUPERVISEUR">Superviseur</option>
                     <option value="AUDITEUR">Auditeur</option>
+                    <option value="TECHNICIEN">Technicien</option>   {/* ← Ajouté */}
                   </select>
                 </td>
                 <td className="px-6 py-4">
@@ -140,28 +130,21 @@ export default function UsersTable() {
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => toggleActive(user.id)}
                       className="hover:bg-slate-800"
-                      aria-label={user.actif ? "Désactiver l'utilisateur" : "Activer l'utilisateur"}
                     >
                       <UserCheck className="w-4 h-4" />
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="hover:bg-slate-800"
-                      aria-label={`Modifier ${user.prenomUtilisateur}`}
-                    >
+                    <Button variant="outline" size="sm" className="hover:bg-slate-800">
                       <Edit3 className="w-4 h-4" />
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                      aria-label={`Supprimer ${user.prenomUtilisateur}`}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>

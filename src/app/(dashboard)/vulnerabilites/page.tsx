@@ -5,8 +5,6 @@ import { authOptions } from '@/lib/auth';
 import { Bug } from 'lucide-react';
 import Link from 'next/link'; // Importation ajoutée pour la redirection
 
-import VulnerabilitesTechnicien from '@/components/dashboard/VulnerabilitesTechnicien';
-
 // Import des composants Admin existants
 import { VulnerabilityStats } from '@/components/vulnerabilites/VulnerabilityStats';
 import { VulnerabilitiesTable } from '@/components/vulnerabilites/VulnerabilitiesTable';
@@ -49,14 +47,12 @@ export default async function VulnerabilitesPage() {
       </div>
 
       <Suspense fallback={<div className="py-20 text-center text-slate-400">Chargement des données...</div>}>
-        {isTechnicien ? (
-          <VulnerabilitesTechnicien />
-        ) : (
+        
           <>
             <VulnerabilityStats/>
             <VulnerabilitiesTable/>
           </>
-        )}
+        
       </Suspense>
     </div>
   );

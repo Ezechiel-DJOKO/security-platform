@@ -19,8 +19,15 @@ export async function GET(request: NextRequest) {
       vulnerabilite: { deletedAt: null }
     };
 
-    if (mesPlans && session.user.role === 'TECHNICIEN') {
-      whereClause.assigneA = session.user.id;
+    // Filtrage selon le rôle
+    if (mesPlans) {
+      if (session.user.role === 'TECHNICIEN') {
+        whereClause.assigneA = session.user.id;
+      } 
+      else if (session.user.role === 'AUDITEUR') {
+        whereClause.createdBy = session.user.id;   // L'auditeur voit ses propres plans
+      }
+      // ADMIN voit tout
     }
 
     const plans = await prisma.planCorrection.findMany({
@@ -45,8 +52,8 @@ export async function GET(request: NextRequest) {
     const plansAvecRetard = plans.map(plan => {
       const now = new Date();
       const dateEcheance = new Date(plan.dateEcheance);
-      const estEnRetard = 
-        !['TERMINE', 'VERIFIE', 'ANNULE'].includes(plan.statut) && 
+      const estEnRetard =
+        !['TERMINE', 'VERIFIE', 'ANNULE'].includes(plan.statut) &&
         dateEcheance < now;
 
       return {
@@ -61,6 +68,7 @@ export async function GET(request: NextRequest) {
       data: plansAvecRetard,
       count: plansAvecRetard.length
     });
+
   } catch (error) {
     console.error("Erreur GET /api/plans-correction:", error);
     return NextResponse.json({
@@ -70,7 +78,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -78,9 +85,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
+    // Seuls Admin et Auditeur peuvent créer des plans
     if (!['ADMIN', 'AUDITEUR'].includes(session.user.role)) {
-      return NextResponse.json({ 
-        error: "Seul l'Admin ou l'Auditeur peut créer un plan de correction" 
+      return NextResponse.json({
+        error: "Seul l'Admin ou l'Auditeur peut créer un plan de correction"
       }, { status: 403 });
     }
 
@@ -101,6 +109,7 @@ export async function POST(request: NextRequest) {
           dateEcheance: new Date(body.dateEcheance),
           statut: StatutPlan.A_FAIRE,
           commentaire: body.commentaire,
+          createdBy: session.user.id,        // ← Important : on enregistre le créateur
         },
         include: {
           vulnerabilite: true,
