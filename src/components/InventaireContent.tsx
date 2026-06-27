@@ -5,26 +5,27 @@ import { Plus, Search, Edit2, Trash2 } from 'lucide-react';
 import { DataTable } from '@/components/common/DataTable';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import ActifModal from './actifs/ActifModal';
-
-// Import pour le formatage des dates
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { TypeActif } from '@prisma/client';
 
 interface Actif {
   id: string;
   nom: string;
-  type: string;
+  type: TypeActif;
   adresseIP?: string | null;
+  hostname?: string | null;
+  localisation?: string | null;
   criticite: string;
   dernierScan?: string | null;
-  hostname?: string | null;
+  createdAt?: string;
 }
 
 interface ActifFormData {
   nom: string;
   type: string;
   adresseIP?: string;
-  criticite: string;
+  hostname?: string;
   localisation?: string;
 }
 
@@ -36,6 +37,41 @@ export default function InventaireContent() {
   const [filterCriticite, setFilterCriticite] = useState('Tous');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingActif, setEditingActif] = useState<Actif | null>(null);
+
+  // Fonction de recommandation d'outil selon le type d'actif
+  const getRecommendedTool = (type: TypeActif): string => {
+    switch (type) {
+      case 'SERVEUR':
+      case 'BDD':
+        return 'NUCLEI';
+      case 'FIREWALL':
+      case 'ROUTER':
+        return 'OPENVAS';
+      case 'APPLICATION':
+        return 'ZAP';
+      case 'CLOUD':
+        return 'NUCLEI';
+      case 'WORKSTATION':
+        return 'NUCLEI';
+      default:
+        return 'NUCLEI';
+    }
+  };
+
+  const getToolLabel = (tool: string): string => {
+    const labels: Record<string, string> = {
+      NUCLEI: "🔍 Nuclei",
+      OPENVAS: "🛡️ OpenVAS",
+      GRYPE: "📦 Grype",
+      ZAP: "⚡ ZAP",
+      BURP_SUITE: "🕵️ Burp",
+      TRIVY: "🐳 Trivy",
+      NESSUS: "📊 Nessus",
+      QUALYS: "☁️ Qualys",
+      MANUAL: "✍️ Manuel",
+    };
+    return labels[tool] || tool;
+  };
 
   // Fetch des actifs
   const fetchActifs = useCallback(async () => {
@@ -61,15 +97,10 @@ export default function InventaireContent() {
   useEffect(() => {
     let isMounted = true;
     const loadActifs = async () => {
-      if (isMounted) {
-        await fetchActifs();
-      }
+      if (isMounted) await fetchActifs();
     };
     loadActifs();
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [fetchActifs]);
 
   const handleCreateOrUpdate = async (data: ActifFormData) => {
@@ -149,12 +180,13 @@ export default function InventaireContent() {
           <Search className="absolute left-4 top-3.5 w-5 h-5 text-slate-500" />
           <input
             type="text"
-            placeholder="Rechercher par nom, ID, IP..."
+            placeholder="Rechercher par nom, IP, hostname..."
             className="w-full bg-slate-950 border border-slate-800 rounded-2xl pl-12 py-3 focus:border-blue-600 outline-none text-white"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+
         <select
           className="bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 focus:border-blue-600 outline-none text-slate-300"
           value={filterCriticite}
@@ -168,15 +200,16 @@ export default function InventaireContent() {
         </select>
       </div>
 
-      {/* Tableau */}
+      {/* Tableau des Actifs */}
       <div className="bg-slate-950 border border-slate-800 rounded-3xl overflow-hidden">
         <DataTable
           data={actifs}
           columns={[
-            { accessor: 'id', header: 'ID' },
             { accessor: 'nom', header: "Nom de l'actif" },
             { accessor: 'type', header: 'Type' },
             { accessor: 'adresseIP', header: 'Adresse IP' },
+            { accessor: 'hostname', header: 'Hostname' },
+            { accessor: 'localisation', header: 'Localisation' },
             {
               accessor: (actif) => <StatusBadge status={actif.criticite} />,
               header: 'Criticité'
@@ -186,16 +219,11 @@ export default function InventaireContent() {
                 if (!actif.dernierScan) {
                   return <span className="text-amber-500 italic">Jamais scanné</span>;
                 }
-
                 const date = new Date(actif.dernierScan);
-                if (isNaN(date.getTime())) {
-                  return <span className="text-red-400">Date invalide</span>;
-                }
-
                 return (
                   <div className="space-y-1">
                     <div className="font-medium text-emerald-400">
-                      {date.toLocaleDateString('fr-FR')} à {date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      {date.toLocaleDateString('fr-FR')}
                     </div>
                     <div className="text-xs text-slate-400">
                       il y a {formatDistanceToNow(date, { locale: fr, addSuffix: true })}
@@ -206,19 +234,28 @@ export default function InventaireContent() {
               header: 'Dernier Scan'
             },
             {
+              accessor: (actif: Actif) => {
+                const tool = getRecommendedTool(actif.type);
+                return (
+                  <div className="font-medium text-blue-400">
+                    {getToolLabel(tool)}
+                  </div>
+                );
+              },
+              header: 'Outil de Scan'
+            },
+            {
               accessor: (actif) => (
                 <div className="flex gap-2">
                   <button
                     onClick={() => { setEditingActif(actif); setIsModalOpen(true); }}
                     className="p-2 hover:bg-slate-800 rounded-xl text-blue-400 hover:text-blue-500 transition-colors"
-                    aria-label="Modifier l'actif"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(actif.id)}
                     className="p-2 hover:bg-slate-800 rounded-xl text-red-400 hover:text-red-500 transition-colors"
-                    aria-label="Supprimer l'actif"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

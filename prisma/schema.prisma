@@ -42,6 +42,7 @@ model Actif {
   updatedAt    DateTime        @updatedAt
   rapports     RapportAudit[]  @relation("RapportActif")
   scans        Scan[]          @relation("ScanSurActif")
+  vulnerabilites Vulnerabilite[] @relation("VulnSurActif")
 
   @@index([adresseIP])
   @@index([criticite])
@@ -77,6 +78,7 @@ model Scan {
 model Vulnerabilite {
   id                String                    @id @default(uuid()) @db.Uuid
   idScan            String                    @db.Uuid
+  idActif           String?                   @db.Uuid
   cveId             String?
   titre             String
   description       String?
@@ -107,6 +109,7 @@ model Vulnerabilite {
   controles         VulnerabiliteControl[]
   assigne           Utilisateur?              @relation("VulnAssigneA", fields: [assigneA], references: [id])
   scan              Scan                      @relation("DetecteeParScan", fields: [idScan], references: [id], onDelete: Cascade)
+  actif             Actif?                    @relation("VulnSurActif", fields: [idActif], references: [id])
 
   @@index([statut])
   @@index([severite])

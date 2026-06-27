@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { logAuditEvent } from '@/lib/audit';
+import { TypeActif, NiveauCriticite } from '@prisma/client';
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,6 +22,7 @@ export async function GET(req: NextRequest) {
       where.OR = [
         { nom: { contains: search, mode: 'insensitive' } },
         { adresseIP: { contains: search, mode: 'insensitive' } },
+        { hostname: { contains: search, mode: 'insensitive' } },
       ];
     }
 
@@ -33,14 +35,15 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Correction importante : on garde la date brute (ISO)
     const formatted = actifs.map((a) => ({
       id: a.id,
       nom: a.nom,
       type: a.type,
       adresseIP: a.adresseIP,
+      hostname: a.hostname,
+      localisation: a.localisation,
       criticite: a.criticite,
-      dernierScan: a.dernierScan ? a.dernierScan.toISOString() : null, // ← Important
+      dernierScan: a.dernierScan ? a.dernierScan.toISOString() : null,
     }));
 
     await logAuditEvent(session.user.id, "LECTURE", "ACTIF", { count: formatted.length }).catch(() => {});
@@ -52,7 +55,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// Les autres méthodes (POST, PUT, DELETE) restent identiques
+// ==================== POST - Création ====================
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -61,17 +64,39 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const actif = await prisma.actif.create({ data: body });
 
-    await logAuditEvent(session.user.id, "CREATION", "ACTIF", { id: actif.id }).catch(() => {});
+    // ✅ Correction : On ajoute une criticité par défaut
+    const data = {
+      nom: body.nom,
+      type: body.type as TypeActif,
+      adresseIP: body.adresseIP || null,
+      hostname: body.hostname || null,
+      localisation: body.localisation || null,
+      criticite: (body.criticite as NiveauCriticite) || NiveauCriticite.MOYEN, // Valeur par défaut
+    };
 
-    return NextResponse.json({ success: true, data: actif }, { status: 201 });
+    const actif = await prisma.actif.create({ data });
+
+    await logAuditEvent(session.user.id, "CREATION", "ACTIF", { 
+      id: actif.id, 
+      nom: actif.nom 
+    }).catch(() => {});
+
+    return NextResponse.json({ 
+      success: true, 
+      data: actif 
+    }, { status: 201 });
+
   } catch (error: any) {
     console.error("Erreur POST actif:", error);
-    return NextResponse.json({ success: false, error: "Erreur création" }, { status: 500 });
+    return NextResponse.json({ 
+      success: false, 
+      error: error.message || "Erreur lors de la création de l'actif" 
+    }, { status: 500 });
   }
 }
 
+// ==================== PUT - Modification ====================
 export async function PUT(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -81,6 +106,7 @@ export async function PUT(req: NextRequest) {
 
     const body = await req.json();
     const { id } = body;
+
     if (!id) {
       return NextResponse.json({ error: "ID requis" }, { status: 400 });
     }
@@ -91,8 +117,9 @@ export async function PUT(req: NextRequest) {
         nom: body.nom,
         type: body.type,
         adresseIP: body.adresseIP,
-        criticite: body.criticite,
+        hostname: body.hostname,
         localisation: body.localisation,
+        criticite: body.criticite,
       },
     });
 
@@ -105,6 +132,7 @@ export async function PUT(req: NextRequest) {
   }
 }
 
+// ==================== DELETE (Soft Delete) ====================
 export async function DELETE(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
