@@ -1,8 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { CheckCircle, AlertTriangle, Eye, RefreshCw } from 'lucide-react';
+import { CheckCircle, Eye } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import PlanCorrectionDetailModal from './PlanCorrectionDetailModal';
+import VulnerabilityDetailModal from '../vulnerabilites/VulnerabilityDetailModal';
+
 
 type TacheTechnicien = {
   id: string;
@@ -14,6 +15,7 @@ type TacheTechnicien = {
     scoreCVSS?: number | null;
     risqueRelatif?: number | null;
     recommandation?: string | null;
+    statut?: string;
   };
   priorite: string;
   dateEcheance: string;
@@ -26,8 +28,9 @@ export default function MesTachesTechnicien() {
   const [taches, setTaches] = useState<TacheTechnicien[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [selectedTache, setSelectedTache] = useState<TacheTechnicien | null>(null);
-  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+  // États pour le modal de détails (vulnérabilité)
+  const [selectedVuln, setSelectedVuln] = useState<TacheTechnicien['vulnerabilite'] | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const fetchMesTaches = async () => {
     try {
@@ -44,9 +47,10 @@ export default function MesTachesTechnicien() {
     }
   };
 
-  const openPlanDetails = (tache: TacheTechnicien) => {
-    setSelectedTache(tache);
-    setIsPlanModalOpen(true);
+  // 👇 On ouvre le modal en passant la vulnérabilité de la tâche
+  const openDetails = (tache: TacheTechnicien) => {
+    setSelectedVuln(tache.vulnerabilite);
+    setIsModalOpen(true);
   };
 
   useEffect(() => {
@@ -70,8 +74,6 @@ export default function MesTachesTechnicien() {
   return (
     <>
       <div className="space-y-6">
-        
-
         <div className="grid gap-4">
           {taches.map((tache) => (
             <div
@@ -115,7 +117,7 @@ export default function MesTachesTechnicien() {
                   </div>
 
                   <button
-                    onClick={() => openPlanDetails(tache)}
+                    onClick={() => openDetails(tache)}
                     className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-sm font-medium transition"
                   >
                     <Eye className="h-4 w-4" />
@@ -128,14 +130,27 @@ export default function MesTachesTechnicien() {
         </div>
       </div>
 
-      {/* Modal */}
-      <PlanCorrectionDetailModal
-        open={isPlanModalOpen}
+      {/* 👇 Modal de détails identique à la page Vulnérabilités */}
+      <VulnerabilityDetailModal
+        open={isModalOpen}
         onClose={() => {
-          setIsPlanModalOpen(false);
-          setSelectedTache(null);
+          setIsModalOpen(false);
+          setSelectedVuln(null);
         }}
-        tache={selectedTache}
+        vulnerability={
+          selectedVuln
+            ? {
+                id: selectedVuln.id,
+                titre: selectedVuln.titre,
+                cveId: selectedVuln.cveId ?? null,
+                severite: selectedVuln.severite,
+                scoreCVSS: selectedVuln.scoreCVSS ?? null,
+                risqueRelatif: selectedVuln.risqueRelatif ?? null,
+                statut: selectedVuln.statut ?? 'OUVERTE',
+                recommandation: selectedVuln.recommandation ?? null,
+              }
+            : null
+        }
       />
     </>
   );
