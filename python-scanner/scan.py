@@ -5,13 +5,12 @@ import argparse
 from datetime import datetime
 
 def map_severity(sev: str) -> str:
-    """Mapping robuste de la sévérité"""
     if not sev:
         return "MEDIUM"
     sev = str(sev).upper().strip()
     if sev in ["CRITICAL", "CRITIQUE", "C"]:
         return "CRITICAL"
-    elif sev in ["HIGH", "ÉLEVÉ", "ELEVATED", "H"]:
+    elif sev in ["HIGH", "ÉLEVÉ", "H"]:
         return "HIGH"
     elif sev in ["MEDIUM", "MOYEN", "M"]:
         return "MEDIUM"
@@ -19,14 +18,14 @@ def map_severity(sev: str) -> str:
         return "LOW"
     return "MEDIUM"
 
-
-def simulate_nuclei(target: str, scan_id: str):
+def simulate_nuclei_web(target: str, scan_id: str):
+    """Simulation de scan Nuclei orienté Applications Web"""
     return {
         "status": "success",
         "scanner": "NUCLEI",
         "target": target,
         "scan_id": scan_id,
-        "findings": 18,
+        "findings": 12,
         "data": [
             {
                 "id": "CVE-2024-1234",
@@ -35,27 +34,44 @@ def simulate_nuclei(target: str, scan_id: str):
                 "severite": "CRITICAL",
                 "scoreCVSS": 9.8,
                 "cveId": "CVE-2024-1234",
-                "preuve": "nuclei template matched"
+                "preuve": "nuclei template matched",
+                "url": f"http://{target}/admin",
+                "endpoint": "/admin"
             },
             {
                 "id": "CVE-2023-5678",
-                "titre": "SQL Injection",
+                "titre": "SQL Injection on Login",
                 "description": "Possible SQL injection on login page",
                 "severite": "HIGH",
                 "scoreCVSS": 8.2,
-                "cveId": "CVE-2023-5678"
+                "cveId": "CVE-2023-5678",
+                "url": f"http://{target}/login.php",
+                "endpoint": "/login.php",
+                "payload": "' OR 1=1 --"
             },
             {
-                "id": "NUC-LOW-001",
+                "id": "NUC-XSS-001",
+                "titre": "Reflected XSS",
+                "description": "Cross-Site Scripting vulnerability detected",
+                "severite": "HIGH",
+                "scoreCVSS": 7.1,
+                "cveId": None,
+                "url": f"http://{target}/search?q=<script>alert(1)</script>",
+                "endpoint": "/search"
+            },
+            {
+                "id": "NUC-HEADER-001",
                 "titre": "Missing Security Headers",
                 "description": "X-Frame-Options header is not set",
                 "severite": "MEDIUM",
                 "scoreCVSS": 5.4,
-                "cveId": None
+                "cveId": None,
+                "url": f"http://{target}/",
+                "endpoint": "/"
             },
             {
                 "id": "NUC-LOW-002",
-                "titre": "Outdated Server Version",
+                "titre": "Server Version Disclosure",
                 "description": "Server exposes version information",
                 "severite": "LOW",
                 "scoreCVSS": 3.7,
@@ -64,70 +80,12 @@ def simulate_nuclei(target: str, scan_id: str):
         ]
     }
 
+def simulate_nuclei(target: str, scan_id: str):
+    return simulate_nuclei_web(target, scan_id)  # Par défaut on utilise le mode Web
 
 def simulate_openvas(target: str, scan_id: str):
-    return {
-        "status": "success",
-        "scanner": "OPENVAS",
-        "target": target,
-        "scan_id": scan_id,
-        "findings": 12,
-        "data": [
-            {
-                "id": "OV-001",
-                "titre": "Open Port with Weak Service",
-                "description": "Port 445 (SMB) exposed with weak configuration",
-                "severite": "HIGH",
-                "scoreCVSS": 7.5,
-                "cveId": None
-            },
-            {
-                "id": "OV-002",
-                "titre": "Weak SSL/TLS Configuration",
-                "description": "Server supports deprecated TLS 1.0",
-                "severite": "MEDIUM",
-                "scoreCVSS": 6.5,
-                "cveId": None
-            },
-            {
-                "id": "OV-003",
-                "titre": "Informational Finding",
-                "description": "Directory listing enabled",
-                "severite": "LOW",
-                "scoreCVSS": 2.1,
-                "cveId": None
-            }
-        ]
-    }
-
-
-def simulate_grype(target: str, scan_id: str):
-    return {
-        "status": "success",
-        "scanner": "GRYPE",
-        "target": target,
-        "scan_id": scan_id,
-        "findings": 15,
-        "data": [
-            {
-                "id": "GHSA-xyz",
-                "titre": "Vulnerable Docker Image",
-                "description": "Container contains critical vulnerability",
-                "severite": "CRITICAL",
-                "scoreCVSS": 9.1,
-                "cveId": "CVE-2025-9999"
-            },
-            {
-                "id": "GHSA-medium-001",
-                "titre": "Moderate vulnerability in dependency",
-                "description": "Library has known moderate security issue",
-                "severite": "MEDIUM",
-                "scoreCVSS": 5.9,
-                "cveId": "CVE-2024-1111"
-            }
-        ]
-    }
-
+    # ... (ton code existant)
+    return { ... }  # Garde ton simulate_openvas actuel
 
 def main():
     parser = argparse.ArgumentParser(description="Scanner Security Platform")
@@ -136,8 +94,7 @@ def main():
     parser.add_argument('--scan-id', required=True)
     args = parser.parse_args()
 
-    print(f"[Python] Scan simulé → Tool: {args.tool.upper()} | Cible: {args.target} | ID: {args.scan_id}",
-          file=sys.stderr)
+    print(f"[Python] Scan simulé → Tool: {args.tool.upper()} | Cible: {args.target} | ID: {args.scan_id}", file=sys.stderr)
 
     try:
         if args.tool == "nuclei":
@@ -149,7 +106,7 @@ def main():
         else:
             raise ValueError(f"Tool inconnu: {args.tool}")
 
-        print(json.dumps(output, ensure_ascii=False))
+        print(json.dumps(output, ensure_ascii=False, default=str))
 
     except Exception as e:
         error_output = {
@@ -161,7 +118,6 @@ def main():
         }
         print(json.dumps(error_output))
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

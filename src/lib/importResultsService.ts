@@ -1,179 +1,115 @@
 // src/lib/importResultsService.ts
 import { prisma } from '@/lib/prisma';
-import { Severite, StatutVulnerabilite } from '@prisma/client';
+import { Severite, StatutVulnerabilite, OutilScan, TypeVulnerabilite } from '@prisma/client';
 
-// Define proper types
 interface Finding {
   name?: string;
   title?: string;
-  template?: {
-    name?: string;
-  };
-  vulnerability?: {
-    id?: string;
-    description?: string;
-  };
+  template?: { name?: string };
   description?: string;
-  info?: {
-    description?: string;
-    severity?: string;
-    classification?: {
-      "cve-id"?: string | string[];
-      cvss?: string | number;
-    };
-  };
-  cve_id?: string | string[];
-  cveId?: string | string[];
-  cvss?: string | number;
-  scoreCVSS?: string | number;
+  info?: any;
+  cve_id?: any;
+  cveId?: any;
+  cvss?: any;
+  scoreCVSS?: any;
   severity?: string;
   recommandation?: string;
   remediation?: string;
   impact?: string;
+  host?: string;
+  url?: string;
+  endpoint?: string;
+  method?: string;
+  payload?: string;
 }
 
-interface ScanResult {
-  scanner?: string;
-  target?: string;
-  data?: Finding[];
-  scan_id?: string;
-  findings?: number;
-  [key: string]: unknown;
-}
-
-interface ImportError extends Error {
-  message: string;
-}
-
-// Helper function to safely extract CVE ID
-function extractCveId(cveField: string | string[] | undefined): string | null {
-  if (!cveField) return null;
-  if (Array.isArray(cveField)) {
-    return cveField[0] || null;
-  }
-  return cveField;
-}
-
-// Helper function to safely parse score
-function parseScore(score: string | number | undefined): number | null {
-  if (!score) return null;
-  const parsed = typeof score === 'string' ? parseFloat(score) : score;
-  return isNaN(parsed) ? null : parsed;
-}
-
-// Helper function to map severity from score
-function determineSeverityFromScore(score: number): Severite {
-  if (score >= 9.0) return Severite.CRITICAL;
-  if (score >= 7.0) return Severite.HIGH;
-  if (score >= 4.0) return Severite.MEDIUM;
-  return Severite.LOW;
-}
-
-// Helper function to map severity from string
-function determineSeverityFromString(severity: string): Severite | null {
-  const sev = severity.toUpperCase();
-  if (['CRITICAL', 'CRITIQUE'].includes(sev)) return Severite.CRITICAL;
-  if (['HIGH', 'HAUTE'].includes(sev)) return Severite.HIGH;
-  if (['MEDIUM', 'MOYEN'].includes(sev)) return Severite.MEDIUM;
-  if (['LOW', 'BASSE'].includes(sev)) return Severite.LOW;
-  return null;
-}
-
-// Helper function to truncate title
-function truncateTitle(title: string, maxLength: number = 255): string {
-  if (title.length <= maxLength) return title;
-  return title.substring(0, maxLength - 3) + "...";
-}
-
-export async function importResultsToPrisma(scanId: string, result: ScanResult) {
+export async function importResultsToPrisma(
+  scanId: string, 
+  result: any,
+  tool: OutilScan = 'MANUAL'
+) {
   try {
-    const findings = Array.isArray(result.data) ? result.data : [];
-    
+    let findings = Array.isArray(result.data) ? result.data : 
+                   Array.isArray(result) ? result : [];
+
     if (findings.length === 0) {
-      console.log(`ℹ️ Aucun finding à importer pour le scan ${scanId}`);
-      return { imported: 0 };
+      console.log(`ℹ️ Aucun finding pour le scan ${scanId}`);
+      return { success: true, imported: 0 };
     }
 
-    console.log(`📥 Importation de ${findings.length} vulnérabilités pour le scan ${scanId}...`);
-
-    const importedVulns = [];
-
-    for (const finding of findings) {
-      // Extract title
-      const titre = finding.name || 
-                    finding.title || 
-                    finding.template?.name || 
-                    finding.vulnerability?.id || 
-                    "Vulnérabilité détectée";
-
-      // Extract description
-      const description = finding.description || 
-                         finding.info?.description || 
-                         finding.vulnerability?.description || 
-                         "";
-
-      // Extract CVE ID
-      const cveId = extractCveId(finding.cve_id || finding.cveId || finding.info?.classification?.["cve-id"]);
-
-      // Extract CVSS score
-      const scoreCVSS = parseScore(finding.cvss || finding.scoreCVSS || finding.info?.classification?.cvss);
-
-      // Determine severity
-      let severite: Severite = Severite.MEDIUM;
+    const vulnsToCreate = findings.map((finding: Finding) => {
+      const titre = (finding.name || finding.title || finding.template?.name || "Vulnérabilité détectée").slice(0, 255);
       
-      if (scoreCVSS !== null) {
-        severite = determineSeverityFromScore(scoreCVSS);
-      } else if (finding.severity || finding.info?.severity) {
-        const severityString = String(finding.severity || finding.info?.severity);
-        const mappedSeverity = determineSeverityFromString(severityString);
-        if (mappedSeverity) {
-          severite = mappedSeverity;
-        }
-      }
+      const isWebVuln = !!(finding.url || finding.endpoint || 
+                        (finding.template?.name && /http|web|xss|sqli|csrf|header/i.test(finding.template.name)));
 
-      const truncatedTitle = truncateTitle(titre);
+      return {
+        idScan: scanId,
+        cveId: Array.isArray(finding.cve_id) ? finding.cve_id[0] : (finding.cve_id || finding.cveId),
+        titre,
+        description: finding.description || finding.info?.description || null,
+        severite: determineSeverity(finding),
+        scoreCVSS: parseScore(finding.cvss || finding.scoreCVSS || finding.info?.classification?.cvss),
+        statut: StatutVulnerabilite.OUVERTE,
+        preuve: JSON.stringify(finding),
+        recommandation: finding.recommandation || finding.remediation || null,
+        impact: finding.impact || null,
 
-      const vuln = await prisma.vulnerabilite.create({
-        data: {
-          idScan: scanId,
-          cveId: cveId,
-          titre: truncatedTitle,
-          description: description || null,
-          severite,
-          scoreCVSS: scoreCVSS,
-          statut: StatutVulnerabilite.OUVERTE,
-          preuve: JSON.stringify({
-            scanner: result.scanner || "unknown",
-            rawFinding: finding,
-            importedAt: new Date().toISOString(),
-          }),
-          recommandation: finding.recommandation || finding.remediation || null,
-          impact: finding.impact || null,
-        }
-      });
+        // Champs Web (maintenant disponibles grâce à la migration)
+        typeVulnerabilite: isWebVuln ? TypeVulnerabilite.WEB_APP : TypeVulnerabilite.NETWORK,
+        urlCible: finding.url || null,
+        endpoint: finding.endpoint || null,
+        methodeHttp: finding.method || null,
+        payload: finding.payload || null,
+      };
+    });
 
-      importedVulns.push(vuln);
-    }
+    const created = await prisma.vulnerabilite.createMany({
+      data: vulnsToCreate,
+      skipDuplicates: true,
+    });
 
-    // Mise à jour finale du scan
     await prisma.scan.update({
       where: { id: scanId },
       data: {
-        resultatBrut: result as unknown as any,
+        resultatBrut: result,
+        statut: 'TERMINE',
         metadata: {
-          totalVulnerabilites: importedVulns.length,
-          importCompletedAt: new Date(),
-          scanner: result.scanner
+          totalVulnerabilites: created.count,
+          tool,
+          parserVersion: "2.3-web"
         }
       }
     });
 
-    console.log(`✅ ${importedVulns.length} vulnérabilités importées avec succès !`);
-    return { success: true, imported: importedVulns.length };
+    console.log(`✅ ${created.count} vulnérabilités importées avec succès (Web support activé)`);
+    return { success: true, imported: created.count };
 
-  } catch (error) {
-    const err = error as ImportError;
-    console.error("❌ Erreur lors de l'import des résultats:", err);
-    throw new Error(`Échec import Prisma : ${err.message}`);
+  } catch (error: any) {
+    console.error("❌ Erreur dans importResultsToPrisma:", error);
+    throw error;
   }
+}
+
+// Helpers
+function determineSeverity(finding: any): Severite {
+  const score = parseScore(finding.cvss || finding.scoreCVSS);
+  if (score !== null) {
+    if (score >= 9.0) return Severite.CRITICAL;
+    if (score >= 7.0) return Severite.HIGH;
+    if (score >= 4.0) return Severite.MEDIUM;
+    return Severite.LOW;
+  }
+
+  const sev = String(finding.severity || finding.info?.severity || '').toLowerCase();
+  if (sev.includes('crit')) return Severite.CRITICAL;
+  if (sev.includes('high')) return Severite.HIGH;
+  if (sev.includes('med')) return Severite.MEDIUM;
+  return Severite.LOW;
+}
+
+function parseScore(score: any): number | null {
+  if (score == null) return null;
+  const num = typeof score === 'string' ? parseFloat(score) : Number(score);
+  return isNaN(num) ? null : num;
 }

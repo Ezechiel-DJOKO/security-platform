@@ -7,27 +7,23 @@ datasource db {
 }
 
 model Utilisateur {
-  id             String          @id @default(uuid()) @db.Uuid
-  nom            String
-  prenom         String
-  email          String          @unique
-  motDePasseHash String
-  role           RoleUtilisateur
-  actif          Boolean         @default(true)
-  deletedAt      DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-
-  // Relations existantes
+  id                       String                    @id @default(uuid()) @db.Uuid
+  nom                      String
+  prenom                   String
+  email                    String                    @unique
+  role                     RoleUtilisateur
+  actif                    Boolean                   @default(true)
+  deletedAt                DateTime?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  motDePasseHash           String
   auditLogs                AuditLog[]                @relation("AuditUtilisateur")
   historiquesVulnerabilite HistoriqueVulnerabilite[] @relation("HistoriqueModifiePar")
+  plansAssignes            PlanCorrection[]          @relation("PlanAssigneA")
+  plansCrees               PlanCorrection[]          @relation("PlanCreatedBy")
   rapportsGenere           RapportAudit[]            @relation("RapportGenerePar")
   scansLancees             Scan[]                    @relation("ScanLancePar")
   vulnerabilitesAssignees  Vulnerabilite[]           @relation("VulnAssigneA")
-
-  // === RELATIONS POUR PLAN CORRECTION ===
-  plansAssignes PlanCorrection[] @relation("PlanAssigneA")
-  plansCrees    PlanCorrection[] @relation("PlanCreatedBy")
 
   @@map("utilisateur")
 }
@@ -44,9 +40,8 @@ model Actif {
   deletedAt    DateTime?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
-
-  rapports RapportAudit[] @relation("RapportActif")
-  scans    Scan[]         @relation("ScanSurActif")
+  rapports     RapportAudit[]  @relation("RapportActif")
+  scans        Scan[]          @relation("ScanSurActif")
 
   @@index([adresseIP])
   @@index([criticite])
@@ -55,23 +50,22 @@ model Actif {
 }
 
 model Scan {
-  id              String     @id @default(uuid()) @db.Uuid
-  idActif         String     @db.Uuid
-  lancerPar       String     @db.Uuid
-  type            TypeScan
-  outil           OutilScan
-  statut          StatutScan @default(PLANIFIE)
-  debut           DateTime?
-  fin             DateTime?
-  duree           Int?
-  resultatBrut    Json?
-  resultatOpenvas Json?
-  metadata        Json?
-  erreur          String?
-  cible           String?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-
+  id               String          @id @default(uuid()) @db.Uuid
+  idActif          String          @db.Uuid
+  lancerPar        String          @db.Uuid
+  type             TypeScan
+  outil            OutilScan
+  statut           StatutScan      @default(PLANIFIE)
+  debut            DateTime?
+  fin              DateTime?
+  duree            Int?
+  resultatBrut     Json?
+  metadata         Json?
+  erreur           String?
+  cible            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  resultatOpenvas  Json?
   controlesEvalues ControlScan[]   @relation("ScanControles")
   actif            Actif           @relation("ScanSurActif", fields: [idActif], references: [id], onDelete: Cascade)
   utilisateur      Utilisateur     @relation("ScanLancePar", fields: [lancerPar], references: [id])
@@ -81,35 +75,38 @@ model Scan {
 }
 
 model Vulnerabilite {
-  id             String              @id @default(uuid()) @db.Uuid
-  idScan         String              @db.Uuid
-  cveId          String?
-  titre          String
-  description    String?
-  severite       Severite
-  scoreCVSS      Float?
-  cvssVersion    String?
-  epssScore      Float?
-  vecteurCVSS    String?
-  statut         StatutVulnerabilite @default(OUVERTE)
-  assigneA       String?             @db.Uuid
-  preuve         String?
-  impact         String?
-  recommandation String?
-  risqueRelatif  Float?
-  dateDecouverte DateTime            @default(now())
-  dateCorrection DateTime?
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  deletedAt      DateTime?
-
-  historiques HistoriqueVulnerabilite[] @relation("HistoriqueVulnerabilite")
-  plan        PlanCorrection[]
-  tags        TagVulnerabilite[]
-  controles   VulnerabiliteControl[]
-
-  assigne Utilisateur? @relation("VulnAssigneA", fields: [assigneA], references: [id])
-  scan    Scan         @relation("DetecteeParScan", fields: [idScan], references: [id], onDelete: Cascade)
+  id                String                    @id @default(uuid()) @db.Uuid
+  idScan            String                    @db.Uuid
+  cveId             String?
+  titre             String
+  description       String?
+  severite          Severite
+  scoreCVSS         Float?
+  cvssVersion       String?
+  epssScore         Float?
+  vecteurCVSS       String?
+  statut            StatutVulnerabilite       @default(OUVERTE)
+  assigneA          String?                   @db.Uuid
+  preuve            String?
+  impact            String?
+  recommandation    String?
+  risqueRelatif     Float?
+  dateDecouverte    DateTime                  @default(now())
+  dateCorrection    DateTime?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  deletedAt         DateTime?
+  endpoint          String?
+  methodeHttp       String?
+  payload           String?
+  typeVulnerabilite TypeVulnerabilite?
+  urlCible          String?
+  historiques       HistoriqueVulnerabilite[] @relation("HistoriqueVulnerabilite")
+  plan              PlanCorrection[]
+  tags              TagVulnerabilite[]
+  controles         VulnerabiliteControl[]
+  assigne           Utilisateur?              @relation("VulnAssigneA", fields: [assigneA], references: [id])
+  scan              Scan                      @relation("DetecteeParScan", fields: [idScan], references: [id], onDelete: Cascade)
 
   @@index([statut])
   @@index([severite])
@@ -118,21 +115,20 @@ model Vulnerabilite {
 }
 
 model PlanCorrection {
-  id              String     @id @default(uuid()) @db.Uuid
-  idVulnerabilite String     @db.Uuid
-  assigneA        String?    @db.Uuid
+  id              String        @id @default(uuid()) @db.Uuid
+  idVulnerabilite String        @db.Uuid
+  assigneA        String?       @db.Uuid
   priorite        Priorite
   dateEcheance    DateTime
-  statut          StatutPlan @default(A_FAIRE)
+  statut          StatutPlan    @default(A_FAIRE)
   commentaire     String?
   dateResolution  DateTime?
-  createdBy       String?    @db.Uuid
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-
-  assigne       Utilisateur?  @relation("PlanAssigneA", fields: [assigneA], references: [id])
-  vulnerabilite Vulnerabilite @relation(fields: [idVulnerabilite], references: [id], onDelete: Cascade)
-  createur      Utilisateur?  @relation("PlanCreatedBy", fields: [createdBy], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  createdBy       String?       @db.Uuid
+  assigne         Utilisateur?  @relation("PlanAssigneA", fields: [assigneA], references: [id])
+  createur        Utilisateur?  @relation("PlanCreatedBy", fields: [createdBy], references: [id])
+  vulnerabilite   Vulnerabilite @relation(fields: [idVulnerabilite], references: [id], onDelete: Cascade)
 
   @@map("plans_correction")
 }
@@ -146,9 +142,8 @@ model HistoriqueVulnerabilite {
   modifiePar       String              @db.Uuid
   dateModification DateTime            @default(now())
   createdAt        DateTime            @default(now())
-
-  vulnerabilite Vulnerabilite @relation("HistoriqueVulnerabilite", fields: [idVulnerabilite], references: [id], onDelete: Cascade)
-  utilisateur   Utilisateur   @relation("HistoriqueModifiePar", fields: [modifiePar], references: [id])
+  vulnerabilite    Vulnerabilite       @relation("HistoriqueVulnerabilite", fields: [idVulnerabilite], references: [id], onDelete: Cascade)
+  utilisateur      Utilisateur         @relation("HistoriqueModifiePar", fields: [modifiePar], references: [id])
 
   @@map("historique_vulnerabilites")
 }
@@ -163,24 +158,22 @@ model RapportAudit {
   urlFichier  String?
   genereLe    DateTime      @default(now())
   createdAt   DateTime      @default(now())
-
-  utilisateur Utilisateur @relation("RapportGenerePar", fields: [generePar], references: [id])
-  actif       Actif       @relation("RapportActif", fields: [idActif], references: [id])
+  utilisateur Utilisateur   @relation("RapportGenerePar", fields: [generePar], references: [id])
+  actif       Actif         @relation("RapportActif", fields: [idActif], references: [id])
 
   @@map("rapports_audit")
 }
 
 model ControlConformite {
-  id          String           @id @default(uuid()) @db.Uuid
-  referentiel String           @default("ISO27001")
-  code        String
-  nom         String
-  description String
-  domaine     String?
-  theme       String?
-  statut      StatutConformite @default(NON_EVALUE)
-  ponderation Int              @default(10)
-
+  id             String                 @id @default(uuid()) @db.Uuid
+  referentiel    String                 @default("ISO27001")
+  code           String
+  nom            String
+  description    String
+  domaine        String?
+  theme          String?
+  statut         StatutConformite       @default(NON_EVALUE)
+  ponderation    Int                    @default(10)
   scans          ControlScan[]
   vulnerabilites VulnerabiliteControl[]
 
@@ -191,48 +184,45 @@ model ControlConformite {
 }
 
 model VulnerabiliteControl {
-  id               String   @id @default(uuid()) @db.Uuid
-  vulnerabiliteId  String   @db.Uuid
-  controleId       String   @db.Uuid
-  niveauPertinence Int      @default(80)
+  id               String            @id @default(uuid()) @db.Uuid
+  vulnerabiliteId  String            @db.Uuid
+  controleId       String            @db.Uuid
+  niveauPertinence Int               @default(80)
   justification    String?
-  sourceMapping    String   @default("AUTO")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  controle      ControlConformite @relation(fields: [controleId], references: [id], onDelete: Cascade)
-  vulnerabilite Vulnerabilite     @relation(fields: [vulnerabiliteId], references: [id], onDelete: Cascade)
+  sourceMapping    String            @default("AUTO")
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  controle         ControlConformite @relation(fields: [controleId], references: [id], onDelete: Cascade)
+  vulnerabilite    Vulnerabilite     @relation(fields: [vulnerabiliteId], references: [id], onDelete: Cascade)
 
   @@unique([vulnerabiliteId, controleId])
   @@map("vulnerabilite_control")
 }
 
 model ControlScan {
-  id          String           @id @default(uuid()) @db.Uuid
-  idScan      String           @db.Uuid
-  idControle  String           @db.Uuid
+  id          String            @id @default(uuid()) @db.Uuid
+  idScan      String            @db.Uuid
+  idControle  String            @db.Uuid
   statut      StatutConformite
   commentaire String?
   preuve      String?
-
-  controle ControlConformite @relation(fields: [idControle], references: [id])
-  scan     Scan              @relation("ScanControles", fields: [idScan], references: [id], onDelete: Cascade)
+  controle    ControlConformite @relation(fields: [idControle], references: [id])
+  scan        Scan              @relation("ScanControles", fields: [idScan], references: [id], onDelete: Cascade)
 
   @@map("control_scan")
 }
 
 model AuditLog {
-  id            String      @id @default(uuid()) @db.Uuid
-  idUtilisateur String?     @db.Uuid
+  id            String       @id @default(uuid()) @db.Uuid
+  idUtilisateur String?      @db.Uuid
   action        TypeAction
   entite        EntiteCible
   idEntite      String?
   details       Json?
   ipAdresse     String?
   userAgent     String?
-  dateAction    DateTime    @default(now())
-
-  utilisateur Utilisateur? @relation("AuditUtilisateur", fields: [idUtilisateur], references: [id])
+  dateAction    DateTime     @default(now())
+  utilisateur   Utilisateur? @relation("AuditUtilisateur", fields: [idUtilisateur], references: [id])
 
   @@index([idUtilisateur])
   @@index([action])
@@ -242,23 +232,21 @@ model AuditLog {
 }
 
 model Tag {
-  id        String   @id @default(uuid()) @db.Uuid
-  nom       String   @unique
-  couleur   String?
-  createdAt DateTime @default(now())
-
+  id             String             @id @default(uuid()) @db.Uuid
+  nom            String             @unique
+  couleur        String?
+  createdAt      DateTime           @default(now())
   vulnerabilites TagVulnerabilite[]
 
   @@map("tags")
 }
 
 model TagVulnerabilite {
-  id              String @id @default(uuid()) @db.Uuid
-  vulnerabiliteId String @db.Uuid
-  tagId           String @db.Uuid
-
-  tag           Tag           @relation(fields: [tagId], references: [id], onDelete: Cascade)
-  vulnerabilite Vulnerabilite @relation(fields: [vulnerabiliteId], references: [id], onDelete: Cascade)
+  id              String        @id @default(uuid()) @db.Uuid
+  vulnerabiliteId String        @db.Uuid
+  tagId           String        @db.Uuid
+  tag             Tag           @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  vulnerabilite   Vulnerabilite @relation(fields: [vulnerabiliteId], references: [id], onDelete: Cascade)
 
   @@unique([vulnerabiliteId, tagId])
   @@map("tag_vulnerabilite")
@@ -278,13 +266,11 @@ model KpiHistory {
   @@map("kpi_history")
 }
 
-// ==================== ENUMS ====================
-
 enum RoleUtilisateur {
   ADMIN
   SUPERVISEUR
   AUDITEUR
-  TECHNICIEN 
+  TECHNICIEN
 }
 
 enum TypeActif {
@@ -370,7 +356,7 @@ enum StatutPlan {
   EN_RETARD
   ANNULE
   VERIFIE
-  REJETEE // Ajouté pour gérer le rejet par le superviseur
+  REJETEE
 }
 
 enum StatutConformite {
@@ -387,12 +373,12 @@ enum TypeAction {
   CREATION
   MODIFICATION
   SUPPRESSION
-  SCAN_COMPLETED
   LECTURE
   EXPORT
   SCAN
   ASSIGNATION
   VALIDATION
+  SCAN_COMPLETED
   REJET
 }
 
@@ -404,4 +390,15 @@ enum EntiteCible {
   PLAN_CORRECTION
   RAPPORT
   CONTROLE_CONFORMITE
+}
+
+enum TypeVulnerabilite {
+  NETWORK
+  WEB_APP
+  API
+  CLOUD
+  CONTAINER
+  DEPENDENCY
+  CONFIG
+  OTHER
 }

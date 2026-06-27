@@ -3,8 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
-import { StatutScan, Severite, StatutVulnerabilite } from '@prisma/client';
+import { StatutScan, Severite } from '@prisma/client';
 import { broadcastScanCompleted } from './sse';
+import { importResultsToPrisma } from './importResultsService';
 
 const execAsync = promisify(exec);
 
@@ -62,21 +63,27 @@ export async function triggerScanBackground(scanId: string) {
     // Parsing du résultat Python
     const pythonResult: PythonScanResult = JSON.parse(stdout.trim());
 
-    if (pythonResult.status === "success" && pythonResult.data) {
+    if (pythonResult.status === "success" && pythonResult.data?.length > 0) {
       await saveVulnerabilitiesFromPython(scanId, pythonResult.data);
     }
 
-    // Post-traitement SANS création automatique de plans
+    // Post-traitement
     await postScanProcessing(scanId);
 
     return { success: true, scanId };
 
   } catch (error: any) {
     console.error(`❌ Erreur lors du scan ${scanId}:`, error);
+
     await prisma.scan.update({
       where: { id: scanId },
-      data: { statut: StatutScan.ECHEC, fin: new Date(), erreur: error.message }
+      data: { 
+        statut: StatutScan.ECHEC, 
+        fin: new Date(), 
+        erreur: error.message 
+      }
     });
+
     throw error;
   }
 }
@@ -85,38 +92,31 @@ export async function triggerScanBackground(scanId: string) {
 async function saveVulnerabilitiesFromPython(scanId: string, data: PythonVulnerability[]) {
   console.log(`📥 Enregistrement de ${data.length} vulnérabilités pour le scan ${scanId}`);
 
-  for (const item of data) {
-    try {
-      await prisma.vulnerabilite.create({
-        data: {
-          idScan: scanId,
-          cveId: item.cveId || item.cve || null,
-          titre: item.titre || item.name || 'Vulnérabilité détectée',
-          description: item.description || '',
-          severite: mapSeverity(item.severite || item.severity),
-          scoreCVSS: item.scoreCVSS || item.cvss || null,
-          vecteurCVSS: item.vecteurCVSS || item.vector || null,
-          statut: StatutVulnerabilite.OUVERTE,
-          preuve: item.preuve || JSON.stringify(item),
-          recommandation: item.recommandation || item.solution || "Correctif recommandé",
-          risqueRelatif: (item.scoreCVSS || item.cvss || 0) * 0.8,
-          dateDecouverte: new Date(),
-          impact: item.impact || item.threat,
-        }
-      });
-    } catch (err) {
-      console.error(`❌ Erreur création vulnérabilité:`, err);
-    }
-  }
-}
+  try {
+    const adaptedResult = {
+      scanner: "python-scanner",
+      target: "",
+      data: data.map(item => ({
+        cve_id: item.cveId || item.cve,
+        titre: item.titre || item.name,
+        description: item.description,
+        severity: item.severite || item.severity,
+        scoreCVSS: item.scoreCVSS || item.cvss,
+        recommandation: item.recommandation || item.solution,
+        impact: item.impact || item.threat,
+        preuve: item.preuve,
+      }))
+    };
 
-function mapSeverity(sev: string | undefined): Severite {
-  if (!sev) return Severite.LOW;
-  const s = sev.toLowerCase();
-  if (s.includes('critical')) return Severite.CRITICAL;
-  if (s.includes('high')) return Severite.HIGH;
-  if (s.includes('medium')) return Severite.MEDIUM;
-  return Severite.LOW;
+    const result = await importResultsToPrisma(scanId, adaptedResult, 'MANUAL');
+    
+    console.log(`✅ Import réussi via service centralisé : ${result.imported} vulnérabilités`);
+    return result;
+
+  } catch (error: any) {
+    console.error(`❌ Erreur lors de l'import des vulnérabilités:`, error);
+    throw error;
+  }
 }
 
 // ==================== POST-PROCESSING ====================
@@ -136,26 +136,22 @@ async function postScanProcessing(scanId: string) {
 
     const now = new Date();
 
-    // Mise à jour du statut du scan
+    // Mise à jour du scan
     await prisma.scan.update({
       where: { id: scanId },
-      data: { 
-        statut: StatutScan.TERMINE, 
-        fin: now 
+      data: {
+        statut: StatutScan.TERMINE,
+        fin: now
       }
     });
 
-    // ✅ MISE À JOUR DU DERNIER SCAN DE L'ACTIF
+    // Mise à jour de l'actif
     await prisma.actif.update({
       where: { id: scan.idActif },
-      data: { 
-        dernierScan: now 
-      }
+      data: { dernierScan: now }
     });
 
     console.log(`✅ [SCAN SUCCESS] Scan ${scanId} terminé avec succès`);
-    console.log(`🕒 dernierScan mis à jour pour ${scan.actif.nom} → ${now.toLocaleString('fr-FR')}`);
-
     await sendScanCompletionAlert(scanId);
 
   } catch (error) {
@@ -196,6 +192,7 @@ async function sendScanCompletionAlert(scanId: string) {
       nbCritiques,
       message: nbCritiques > 0 ? `🚨 ${nbCritiques} critique(s)` : `✅ Scan terminé`
     });
+
   } catch (e) {
     console.error("Erreur alerte:", e);
   }
