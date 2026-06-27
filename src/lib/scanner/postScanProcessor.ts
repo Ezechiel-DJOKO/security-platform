@@ -40,53 +40,57 @@ export async function processScanResults(scanId: string): Promise<{ mappingsCrea
     return { mappingsCreated: 0 };
   }
 
-  console.log(`📊 ${scan.vulnerabilites.length} vulnérabilités déjà enregistrées`);
-
   if (scan.vulnerabilites.length === 0 && scan.resultatBrut) {
     await parseAndCreateVulnerabilities(scanId, scan.resultatBrut as RawResults);
   }
 
-  // ====================== MISE À JOUR DERNIER SCAN ======================
+  // Mise à jour dernierScan
   try {
     const now = new Date();
-    const updatedActif = await prisma.actif.update({
+    await prisma.actif.update({
       where: { id: scan.idActif },
-      data: { dernierScan: now },
-      select: { nom: true }
+      data: { dernierScan: now }
     });
-
-    console.log(`✅ dernierScan mis à jour avec succès pour l'actif ${updatedActif.nom} → ${now.toLocaleString('fr-FR')}`);
+    console.log(`✅ dernierScan mis à jour pour ${scan.actif.nom}`);
   } catch (err: any) {
     console.error("❌ Erreur mise à jour dernierScan :", err.message);
   }
-  // =====================================================================
 
   console.log(`✅ Post-traitement terminé pour le scan ${scanId}`);
   return { mappingsCreated: 0 };
 }
 
-// Les deux fonctions en bas restent identiques
 async function parseAndCreateVulnerabilities(scanId: string, rawResults: RawResults) {
-  const vulnerabilities = rawResults.data || rawResults.vulnerabilities || rawResults.results || (Array.isArray(rawResults) ? rawResults : []);
+  const vulnerabilities = rawResults.data ||
+                         rawResults.vulnerabilities ||
+                         rawResults.results ||
+                         (Array.isArray(rawResults) ? rawResults : []);
+
   const vulnArray = Array.isArray(vulnerabilities) ? vulnerabilities : [];
 
   console.log(`📥 Parsing de ${vulnArray.length} vulnérabilités brutes`);
 
   for (const vuln of vulnArray) {
     try {
+      const rawSeverity = vuln.severite || vuln.severity || 'UNKNOWN';
+      const severity = mapSeverity(rawSeverity);
+      const cvssScore = vuln.scoreCVSS || vuln.cvss || 0;
+
+      console.log(`Vuln: "${vuln.titre || vuln.name}" | Severity brute: "${rawSeverity}" → ${severity} | CVSS: ${cvssScore}`);
+
       await prisma.vulnerabilite.create({
         data: {
           idScan: scanId,
           cveId: vuln.cveId || vuln.cve || null,
           titre: vuln.titre || vuln.name || 'Vulnérabilité détectée',
           description: vuln.description || '',
-          severite: mapSeverity(vuln.severite || vuln.severity),
-          scoreCVSS: vuln.scoreCVSS || vuln.cvss || null,
+          severite: severity,
+          scoreCVSS: cvssScore,
           vecteurCVSS: vuln.vecteurCVSS || vuln.vector || null,
           statut: StatutVulnerabilite.OUVERTE,
           preuve: vuln.preuve || JSON.stringify(vuln),
           recommandation: vuln.recommandation || vuln.solution || "Appliquer les correctifs recommandés",
-          risqueRelatif: calculateRiskScore(vuln.scoreCVSS || vuln.cvss || 0),
+          risqueRelatif: calculateRiskScore(cvssScore),
           dateDecouverte: new Date(),
           impact: vuln.impact || vuln.threat || '',
         }
@@ -97,13 +101,29 @@ async function parseAndCreateVulnerabilities(scanId: string, rawResults: RawResu
   }
 }
 
-function mapSeverity(severity: string | undefined): Severite {
-  if (!severity) return Severite.LOW;
-  const s = severity.toLowerCase();
-  if (s.includes('critical')) return Severite.CRITICAL;
-  if (s.includes('high')) return Severite.HIGH;
-  if (s.includes('medium')) return Severite.MEDIUM;
-  return Severite.LOW;
+// Mapping amélioré et plus robuste
+// ✅ AJOUTEZ CES LOGS pour voir ce qui se passe
+function mapSeverity(sev?: string): Severite {
+  console.log(`[MAP_SEVERITY] Entrée: "${sev}"`);
+  
+  const severityMap: Record<string, Severite> = {
+    critical : Severite.CRITICAL,
+    critique : Severite.CRITICAL,
+    high     : Severite.HIGH,
+    élevé    : Severite.HIGH,
+    haute    : Severite.HIGH,
+    medium   : Severite.MEDIUM,
+    moyen    : Severite.MEDIUM,
+    low      : Severite.LOW,
+    faible   : Severite.LOW,
+    bas      : Severite.LOW,
+  };
+
+  const key = (sev ?? '').toLowerCase().trim();
+  const result = severityMap[key] ?? Severite.MEDIUM;
+  
+  console.log(`[MAP_SEVERITY] "${sev}" → key="${key}" → ${result}`);
+  return result;
 }
 
 function calculateRiskScore(cvss: number): number {

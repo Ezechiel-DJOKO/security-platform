@@ -13,7 +13,7 @@ interface GestionnaireScanCardProps {
   idActif: string;
   nomActif?: string;
   adresseIP?: string;
-  typeActif: TypeActif;           // Obligatoire maintenant
+  typeActif: TypeActif;
   scanIdEnCours?: string;
 }
 
@@ -40,16 +40,14 @@ export default function GestionnaireScanCard({
     switch (type) {
       case 'SERVEUR':
       case 'BDD':
+      case 'CLOUD':
+      case 'WORKSTATION':
         return OutilScan.NUCLEI;
       case 'FIREWALL':
       case 'ROUTER':
         return OutilScan.OPENVAS;
       case 'APPLICATION':
         return OutilScan.ZAP;
-      case 'CLOUD':
-        return OutilScan.NUCLEI;
-      case 'WORKSTATION':
-        return OutilScan.NUCLEI;
       default:
         return OutilScan.NUCLEI;
     }
@@ -58,6 +56,7 @@ export default function GestionnaireScanCard({
   // Initialisation de l'outil recommandé
   useEffect(() => {
     const recommended = getRecommendedTool(typeActif);
+    console.log(`[DEBUG] TypeActif reçu: ${typeActif} → Outil recommandé: ${recommended}`);
     setOutilSelectionne(recommended);
   }, [typeActif]);
 
@@ -136,11 +135,18 @@ export default function GestionnaireScanCard({
   const getStatutInfo = (statut?: string) => {
     if (!statut) return { label: 'Aucun scan', color: 'bg-slate-700 text-slate-400' };
     switch (statut) {
-      case 'EN_COURS': return { label: '🔄 En cours...', color: 'bg-blue-500/30 text-blue-400' };
-      case 'TERMINE': case 'COMPLETED': return { label: '✅ Terminé', color: 'bg-emerald-500/30 text-emerald-400' };
-      case 'PLANIFIE': case 'EN_ATTENTE': return { label: '⏳ En attente', color: 'bg-yellow-500/30 text-yellow-400' };
-      case 'ECHEC': return { label: '❌ Échec', color: 'bg-red-500/30 text-red-400' };
-      default: return { label: statut, color: 'bg-slate-700 text-slate-400' };
+      case 'EN_COURS': 
+        return { label: '🔄 En cours...', color: 'bg-blue-500/30 text-blue-400' };
+      case 'TERMINE':
+      case 'COMPLETED': 
+        return { label: '✅ Terminé', color: 'bg-emerald-500/30 text-emerald-400' };
+      case 'PLANIFIE':
+      case 'EN_ATTENTE': 
+        return { label: '⏳ En attente', color: 'bg-yellow-500/30 text-yellow-400' };
+      case 'ECHEC': 
+        return { label: '❌ Échec', color: 'bg-red-500/30 text-red-400' };
+      default: 
+        return { label: statut, color: 'bg-slate-700 text-slate-400' };
     }
   };
 
@@ -161,7 +167,9 @@ export default function GestionnaireScanCard({
 
       {message && (
         <div className={`p-3 rounded-xl text-sm border ${
-          message.type === 'success' ? 'bg-green-900/30 border-green-700 text-green-400' : 'bg-red-900/30 border-red-700 text-red-400'
+          message.type === 'success' 
+            ? 'bg-green-900/30 border-green-700 text-green-400' 
+            : 'bg-red-900/30 border-red-700 text-red-400'
         }`}>
           {message.text}
         </div>
@@ -185,8 +193,11 @@ export default function GestionnaireScanCard({
             <option value={OutilScan.QUALYS}>☁️ Qualys</option>
             <option value={OutilScan.MANUAL}>✍️ Manuel</option>
           </select>
+
           {outilSelectionne !== recommendedTool && (
-            <p className="text-amber-400 text-xs mt-1">⚠️ Outil recommandé pour ce type d’actif : {recommendedTool}</p>
+            <p className="text-amber-400 text-xs mt-1">
+              ⚠️ Outil recommandé pour ce type d’actif : <strong>{recommendedTool}</strong>
+            </p>
           )}
         </div>
 

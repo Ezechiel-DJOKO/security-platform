@@ -6,6 +6,10 @@ import { authOptions } from '@/lib/auth';
 import { StatutScan, TypeScan, OutilScan } from '@prisma/client';
 import { orchestrateScan } from '@/lib/scanner/scanOrchestrator';
 
+// ============================================================
+// GET — Liste des scans (actifs supprimés exclus)
+// ============================================================
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,28 +18,56 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const statut = searchParams.get('statut') as StatutScan | null;
+    const statut  = searchParams.get('statut') as StatutScan | null;
     const actifId = searchParams.get('actifId');
 
-    const where: any = {};
-    if (statut) where.statut = statut;
+    const where: any = {
+      // ⭐ Exclure les scans dont l'actif a été supprimé
+      actif: {
+        deletedAt: null,
+      }
+    };
+
+    if (statut)  where.statut  = statut;
     if (actifId) where.idActif = actifId;
 
     const scans = await prisma.scan.findMany({
       where,
       include: {
-        actif: { select: { nom: true, adresseIP: true } },
-        utilisateur: { select: { nom: true, prenom: true } }
+        actif: {
+          select: {
+            id        : true,
+            nom       : true,
+            adresseIP : true,
+            hostname  : true,
+            type      : true,
+            criticite : true,
+          }
+        },
+        utilisateur: {
+          select: { nom: true, prenom: true }
+        },
+        _count: {
+          select: { vulnerabilites: true }
+        }
       },
       orderBy: { createdAt: 'desc' },
     });
 
     return NextResponse.json({ success: true, data: scans });
+
   } catch (error: any) {
     console.error("Erreur GET scans:", error);
-    return NextResponse.json({ error: "Erreur lors de la récupération des scans" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Erreur lors de la récupération des scans" },
+      { status: 500 }
+    );
   }
 }
+
+// ============================================================
+// POST — Créer un scan
+// ============================================================
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,42 +85,62 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // 1. Création du scan
-    const scan = await prisma.scan.create({
-      data: {
-        idActif,
-        lancerPar: session.user.id,
-        type: type as TypeScan,
-        outil: outil as OutilScan,
-        statut: StatutScan.PLANIFIE,
-        cible,
-        debut: null,
-        fin: null,
-        resultatBrut: null as any,
-        metadata: {
-          createdBy: session.user.email,
-          source: "interface_utilisateur"
-        }
-      },
-      include: {
-        actif: true,
-        utilisateur: { select: { nom: true, prenom: true, email: true } }
+    // ⭐ Vérifier que l'actif existe et n'est PAS supprimé
+    const actif = await prisma.actif.findFirst({
+      where: {
+        id       : idActif,
+        deletedAt: null,        // ← Empêche de scanner un actif supprimé
       }
     });
 
-    // 2. Lancement asynchrone du scan
+    if (!actif) {
+      return NextResponse.json({
+        error: "Actif introuvable ou supprimé. Veuillez actualiser la liste des actifs."
+      }, { status: 404 });
+    }
+
+    // Création du scan
+    const scan = await prisma.scan.create({
+      data: {
+        idActif,
+        lancerPar    : session.user.id,
+        type         : type  as TypeScan,
+        outil        : outil as OutilScan,
+        statut       : StatutScan.PLANIFIE,
+        cible,
+        debut        : null,
+        fin          : null,
+        resultatBrut : null as any,
+        metadata     : {
+          createdBy: session.user.email,
+          source   : "interface_utilisateur"
+        }
+      },
+      include: {
+        actif       : true,
+        utilisateur : { select: { nom: true, prenom: true, email: true } }
+      }
+    });
+
+    // Lancement asynchrone
     setTimeout(() => {
       orchestrateScan(scan.id)
         .then(async (result) => {
-          // ✅ MISE À JOUR DU DERNIER SCAN SUR L'ACTIF
           if (result?.success) {
-            await prisma.actif.update({
-              where: { id: idActif },
-              data: { 
-                dernierScan: new Date() 
-              }
+            // ⭐ Vérifier que l'actif n'a pas été supprimé entre temps
+            const actifStillExists = await prisma.actif.findFirst({
+              where: { id: idActif, deletedAt: null }
             });
-            console.log(`✅ DernierScan mis à jour pour l'actif ${idActif}`);
+
+            if (actifStillExists) {
+              await prisma.actif.update({
+                where: { id: idActif },
+                data : { dernierScan: new Date() }
+              });
+              console.log(`✅ DernierScan mis à jour pour l'actif ${idActif}`);
+            } else {
+              console.warn(`⚠️ Actif ${idActif} supprimé pendant le scan — mise à jour ignorée`);
+            }
           }
         })
         .catch((error) => {
@@ -98,12 +150,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Scan lancé avec succès. Les vulnérabilités seront disponibles une fois le scan terminé.",
-      data: scan
+      message: "Scan lancé avec succès.",
+      data   : scan
     }, { status: 201 });
 
   } catch (error: any) {
     console.error("Erreur POST scans:", error);
-    return NextResponse.json({ error: "Erreur lors de la création du scan" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Erreur lors de la création du scan" },
+      { status: 500 }
+    );
   }
 }

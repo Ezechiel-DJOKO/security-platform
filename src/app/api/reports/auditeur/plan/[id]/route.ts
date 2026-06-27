@@ -11,7 +11,17 @@ export async function GET(
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+  }
+
+  // ✅ prisma.utilisateur
+  const utilisateur = await prisma.utilisateur.findUnique({
+    where: { id: session.user.id },
+    select: { role: true }
+  });
+
+  if (utilisateur?.role !== 'AUDITEUR') {
+    return NextResponse.json({ error: "Acces reserve aux auditeurs" }, { status: 403 });
   }
 
   const { id: planId } = await params;
@@ -21,158 +31,183 @@ export async function GET(
   }
 
   try {
+    // ✅ Pas de auditeurId → on cherche juste par id
     const plan = await prisma.planCorrection.findUnique({
-      where: {
-        id: planId,
-        auditeurId: session.user.id,
-      },
+      where: { id: planId },
       include: {
         vulnerabilite: true,
-        assigne: true,
+        // ✅ relation "assigne" (PlanAssigneA)
+        assigne: {
+          select: {
+            nom: true,
+            prenom: true,
+            email: true
+          }
+        },
       },
     });
 
     if (!plan) {
-      return NextResponse.json({ error: "Assignation non trouvée ou non autorisée" }, { status: 404 });
+      return NextResponse.json({ error: "Plan non trouve" }, { status: 404 });
     }
 
-    if (plan.statut !== 'TERMINE') {
-      return NextResponse.json({ error: "Cette correction n'est pas encore terminée" }, { status: 400 });
-    }
+    // ── Génération PDF ──────────────────────────────────────
 
-    const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([595, 842]);
+    const pdfDoc   = await PDFDocument.create();
+    const page     = pdfDoc.addPage([595, 842]);
     const { height } = page.getSize();
 
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const font     = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
     let y = height - 80;
 
-    // En-tête
+    // En-tete
     page.drawText("RAPPORT D'ASSIGNATION", {
-      x: 50,
-      y,
-      size: 24,
-      font: boldFont,
-      color: rgb(0.1, 0.1, 0.6),
+      x: 50, y, size: 24, font: boldFont, color: rgb(0.1, 0.1, 0.6),
     });
-
-    y -= 40;
-    page.drawText(`Auditeur : ${session.user.name || session.user.email}`, {
-      x: 50,
-      y,
-      size: 13,
-      font,
-    });
-
-    y -= 25;
-    page.drawText(`Date du rapport : ${new Date().toLocaleDateString('fr-FR')}`, {
-      x: 50,
-      y,
-      size: 12,
-      font,
-    });
-
-    // Vulnérabilité
-    y -= 50;
-    page.drawText("VULNÉRABILITÉ ASSIGNÉE", {
-      x: 50,
-      y,
-      size: 16,
-      font: boldFont,
+    y -= 8;
+    page.drawLine({
+      start: { x: 50, y }, end: { x: 545, y },
+      thickness: 2, color: rgb(0.1, 0.1, 0.6)
     });
 
     y -= 35;
-    page.drawText(`Titre : ${plan.vulnerabilite.titre}`, {
-      x: 70,
-      y,
-      size: 12,
-      font,
+    page.drawText(`Auditeur : ${session.user.name || session.user.email}`, {
+      x: 50, y, size: 13, font,
+    });
+    y -= 22;
+    page.drawText(`Date du rapport : ${new Date().toLocaleDateString('fr-FR')}`, {
+      x: 50, y, size: 12, font, color: rgb(0.3, 0.3, 0.3)
     });
 
-    y -= 25;
+    // Statut avec couleur
+    y -= 30;
+    let sr = 0.8, sg = 0.6, sb = 0.0;
+    let statutLabel = 'En cours';
+    if (plan.statut === 'TERMINE')   { sr = 0;   sg = 0.6; sb = 0;   statutLabel = 'Termine';   }
+    if (plan.statut === 'EN_RETARD') { sr = 0.8; sg = 0;   sb = 0;   statutLabel = 'En retard'; }
+    if (plan.statut === 'ANNULE')    { sr = 0.5; sg = 0.5; sb = 0.5; statutLabel = 'Annule';    }
+    if (plan.statut === 'VERIFIE')   { sr = 0;   sg = 0.4; sb = 0.8; statutLabel = 'Verifie';   }
+
+    page.drawText(`Statut : ${statutLabel}`, {
+      x: 50, y, size: 14, font: boldFont, color: rgb(sr, sg, sb)
+    });
+
+    // Vulnerabilite
+    y -= 45;
+    page.drawText("VULNERABILITE ASSIGNEE", {
+      x: 50, y, size: 16, font: boldFont,
+    });
+    y -= 8;
+    page.drawLine({
+      start: { x: 50, y }, end: { x: 545, y },
+      thickness: 1, color: rgb(0.8, 0.8, 0.8)
+    });
+
+    y -= 28;
+    page.drawText(`Titre : ${plan.vulnerabilite.titre}`, {
+      x: 70, y, size: 12, font,
+    });
+    y -= 22;
 
     if (plan.vulnerabilite.cveId) {
       page.drawText(`CVE : ${plan.vulnerabilite.cveId}`, { x: 70, y, size: 12, font });
-      y -= 25;
+      y -= 22;
     }
 
-    page.drawText(`Sévérité : ${plan.vulnerabilite.severite}`, { x: 70, y, size: 12, font });
-    y -= 25;
+    page.drawText(`Severite : ${plan.vulnerabilite.severite}`, {
+      x: 70, y, size: 12, font
+    });
+    y -= 22;
 
-    // Technicien assigné (correction nom/prenom)
+    if (plan.vulnerabilite.scoreCVSS) {
+      page.drawText(`Score CVSS : ${plan.vulnerabilite.scoreCVSS}`, {
+        x: 70, y, size: 12, font
+      });
+      y -= 22;
+    }
+
+    // Technicien
     const technicienName = plan.assigne 
       ? `${plan.assigne.prenom || ''} ${plan.assigne.nom || ''}`.trim() || plan.assigne.email 
-      : 'N/A';
+      : 'Non assigne';
 
-    page.drawText(`Technicien assigné : ${technicienName}`, {
-      x: 70,
-      y,
-      size: 12,
-      font,
+    page.drawText(`Technicien assigne : ${technicienName}`, {
+      x: 70, y, size: 12, font,
     });
+    y -= 22;
 
-    y -= 25;
-    page.drawText(`Date d'échéance : ${new Date(plan.dateEcheance).toLocaleDateString('fr-FR')}`, {
-      x: 70,
-      y,
-      size: 12,
-      font,
-    });
+    page.drawText(
+      `Priorite : ${plan.priorite}`,
+      { x: 70, y, size: 12, font }
+    );
+    y -= 22;
+
+    page.drawText(
+      `Date d echeance : ${new Date(plan.dateEcheance).toLocaleDateString('fr-FR')}`,
+      { x: 70, y, size: 12, font }
+    );
 
     if (plan.dateResolution) {
-      y -= 25;
-      page.drawText(`Date de résolution : ${new Date(plan.dateResolution).toLocaleDateString('fr-FR')}`, {
-        x: 70,
-        y,
-        size: 12,
-        font,
-      });
+      y -= 22;
+      page.drawText(
+        `Date de resolution : ${new Date(plan.dateResolution).toLocaleDateString('fr-FR')}`,
+        { x: 70, y, size: 12, font }
+      );
     }
 
-    // Résultat
+    // Resultat
     y -= 45;
-    page.drawText("RÉSULTAT DE LA CORRECTION", {
-      x: 50,
-      y,
-      size: 16,
-      font: boldFont,
+    page.drawText("RESULTAT DE LA CORRECTION", {
+      x: 50, y, size: 16, font: boldFont,
     });
-
-    y -= 35;
+    y -= 8;
+    page.drawLine({
+      start: { x: 50, y }, end: { x: 545, y },
+      thickness: 1, color: rgb(0.8, 0.8, 0.8)
+    });
+    y -= 28;
 
     if (plan.commentaire) {
       page.drawText("Commentaire du technicien :", {
-        x: 70,
-        y,
-        size: 12,
-        font: boldFont,
+        x: 70, y, size: 12, font: boldFont,
       });
-      y -= 25;
+      y -= 22;
 
       const lines = plan.commentaire.split('\n');
       for (const line of lines) {
         if (y < 100) break;
-        page.drawText(line.trim(), { x: 85, y, size: 11, font });
+        page.drawText(line.trim(), { x: 85, y, size: 11, font, color: rgb(0.2, 0.2, 0.2) });
         y -= 18;
       }
+    } else {
+      page.drawText("Aucun commentaire.", {
+        x: 70, y, size: 11, font, color: rgb(0.5, 0.5, 0.5)
+      });
     }
 
-    const pdfBytes = await pdfDoc.save();
+    // Pied de page
+    page.drawText(
+      `Document genere le ${new Date().toISOString().slice(0, 10)}`,
+      { x: 50, y: 30, size: 9, font, color: rgb(0.6, 0.6, 0.6) }
+    );
+
+    const pdfBytes  = await pdfDoc.save();
     const pdfBuffer = Buffer.from(pdfBytes);
 
     return new NextResponse(pdfBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="Assignation_${plan.vulnerabilite.titre
-          .replace(/[^a-zA-Z0-9]/g, '_')
-          .substring(0, 30)}.pdf"`,
+        'Content-Disposition': `attachment; filename="Assignation_${
+          plan.vulnerabilite.titre.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30)
+        }.pdf"`,
       },
     });
-  } catch (error) {
-    console.error("Erreur génération rapport assignation:", error);
-    return NextResponse.json({ error: "Erreur lors de la génération du rapport" }, { status: 500 });
+
+  } catch (error: any) {
+    console.error("Erreur generation rapport assignation:", error);
+    return NextResponse.json({ error: "Erreur lors de la generation du rapport" }, { status: 500 });
   }
 }

@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { OutilScan, StatutScan } from '@prisma/client';
-import { triggerScanBackground } from '@/lib/scan'; // ou le chemin correct
+import { triggerScanBackground } from '@/lib/scan';
 
 export async function lancerScanAction(idActif: string, outil: OutilScan) {
   try {
@@ -13,61 +13,67 @@ export async function lancerScanAction(idActif: string, outil: OutilScan) {
       return { success: false, error: "Non autorisé : Veuillez vous connecter." };
     }
 
-    const actif = await prisma.actif.findUnique({
-      where: { id: idActif }
+    // ⭐ Vérifier actif non supprimé
+    const actif = await prisma.actif.findFirst({
+      where: {
+        id       : idActif,
+        deletedAt: null,
+      }
     });
 
     if (!actif) {
-      return { success: false, error: "Actif introuvable." };
+      return {
+        success: false,
+        error  : "Actif introuvable ou supprimé."
+      };
     }
 
-    // 1. Création du scan (conforme au diagramme)
+    // Création du scan
     const scan = await prisma.scan.create({
       data: {
         idActif,
-        lancerPar: session.user.id,
-        type: "VULNERABILITE",
+        lancerPar : session.user.id,
+        type      : "VULNERABILITE",
         outil,
-        statut: StatutScan.PLANIFIE,   // ou StatutScan.EN_ATTENTE si tu préfères
-        cible: actif.adresseIP || actif.hostname || "cible-inconnue",
+        statut    : StatutScan.PLANIFIE,
+        cible     : actif.adresseIP || actif.hostname || "cible-inconnue",
       },
     });
 
     console.log(`📋 Scan créé (PLANIFIE) → ID: ${scan.id}`);
 
-    // 2. Mise à jour immédiate du statut → "EN_COURS" (important pour le diagramme)
+    // Passage EN_COURS
     await prisma.scan.update({
       where: { id: scan.id },
-      data: { statut: StatutScan.EN_COURS, debut: new Date() }
+      data : { statut: StatutScan.EN_COURS, debut: new Date() }
     });
 
     console.log(`🚀 Scan passé en EN_COURS → ID: ${scan.id}`);
 
-    // 3. Lancement en arrière-plan
+    // Lancement en arrière-plan
+    // ⭐ triggerScanBackground crée automatiquement les plans CRITICAL + HIGH
     triggerScanBackground(scan.id).catch(async (err) => {
       console.error(`❌ Erreur background scan ${scan.id}:`, err);
-      
-      // Mise à jour en erreur en cas d'échec
+
       await prisma.scan.update({
         where: { id: scan.id },
-        data: { 
+        data : {
           statut: StatutScan.ECHEC,
           erreur: err instanceof Error ? err.message : 'Erreur inconnue',
-          fin: new Date()
+          fin   : new Date()
         }
       });
     });
 
-    // Revalidation du cache
     revalidatePath('/scans');
     revalidatePath('/(dashboard)/scans');
     revalidatePath('/(dashboard)/vulnerabilites');
     revalidatePath('/(dashboard)/plans-correction');
 
     return {
-      success: true,
-      scanId: scan.id,
-      message: "Scan lancé avec succès (Flux 1 activé)"
+      success : true,
+      scanId  : scan.id,
+      message : "Scan lancé. Les plans CRITICAL/HIGH seront créés automatiquement."
     };
 
   } catch (error: unknown) {

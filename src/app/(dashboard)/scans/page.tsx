@@ -1,3 +1,4 @@
+// src/app/(dashboard)/scans/page.tsx
 import { Suspense } from 'react';
 import { RoleGate } from '@/components/RoleGate';
 import GestionnaireScanCard from '@/components/scans/GestionnaireScanCard';
@@ -6,9 +7,17 @@ import prisma from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 
 export default async function ScansPage() {
+  // ⭐ FILTRE AJOUTÉ : deletedAt: null
   const actifs = await prisma.actif.findMany({
+    where: {
+      deletedAt: null,  // ← Exclure les actifs supprimés
+    },
     include: {
       scans: {
+        where: {
+          // Optionnel : exclure aussi les scans supprimés si vous avez un soft delete dessus
+          // deletedAt: null, 
+        },
         orderBy: { debut: 'desc' },
         take: 1,
       },
@@ -19,7 +28,6 @@ export default async function ScansPage() {
   return (
     <RoleGate allowedRoles={['ADMIN', 'AUDITEUR']}>
       <div className="p-8 w-full min-h-screen">
-        {/* Supprimé : bg-slate-950 ici */}
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-white">Gestion des Scans</h1>
@@ -40,25 +48,28 @@ export default async function ScansPage() {
           <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {actifs.map((actif) => {
               const dernierScan = actif.scans[0];
+
               return (
                 <div
                   key={actif.id}
                   className="p-6 border border-slate-800 rounded-2xl bg-slate-900/50 hover:border-slate-700 transition-all duration-200"
                 >
-                  {/* Changé : bg-slate-900 → bg-slate-900/50 (transparent) */}
                   <div className="mb-5">
                     <h2 className="font-semibold text-lg text-slate-100">{actif.nom}</h2>
                     <p className="text-sm text-slate-400 mt-1">
                       {actif.adresseIP || actif.hostname}
                     </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Type : {actif.type}
+                    </p>
                   </div>
 
                   <Suspense fallback={<div className="h-48 bg-slate-800/50 rounded-xl animate-pulse" />}>
-                    {/* Changé : bg-slate-800 → bg-slate-800/50 */}
                     <GestionnaireScanCard
                       idActif={actif.id}
                       nomActif={actif.nom}
                       adresseIP={actif.adresseIP || actif.hostname || ''}
+                      typeActif={actif.type}       
                       scanIdEnCours={dernierScan?.id}
                     />
                   </Suspense>
