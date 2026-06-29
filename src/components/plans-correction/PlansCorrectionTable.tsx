@@ -132,9 +132,9 @@ export default function PlansCorrectionTable() {
           />
         </div>
 
-        <select 
-          value={filterStatus} 
-          onChange={(e) => setFilterStatus(e.target.value)} 
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
           className="bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5"
         >
           <option value="">Tous les statuts</option>
@@ -173,8 +173,8 @@ export default function PlansCorrectionTable() {
                     <div className="text-6xl mb-4 text-slate-700">📭</div>
                     <p className="text-xl font-medium text-slate-300">Aucun plan de correction trouvé</p>
                     <p className="text-slate-500 mt-2 max-w-sm">
-                      {searchTerm || filterStatus 
-                        ? "Aucun résultat ne correspond à vos filtres" 
+                      {searchTerm || filterStatus
+                        ? "Aucun résultat ne correspond à vos filtres"
                         : "Vous n'avez pas encore créé de plan de correction"}
                     </p>
                   </div>
@@ -204,7 +204,9 @@ export default function PlansCorrectionTable() {
                           <User className="w-4 h-4 text-emerald-400" />
                           <span>{plan.assigne.prenom} {plan.assigne.nom}</span>
                         </div>
-                      ) : '-'}
+                      ) : (
+                        <span className="text-orange-400 italic">Non assigné</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-slate-300">
                       {new Date(plan.dateEcheance).toLocaleDateString('fr-FR')}
@@ -265,7 +267,7 @@ export default function PlansCorrectionTable() {
   );
 }
 
-/* ====================== MODAL D'ÉDITION ====================== */
+/* ====================== MODAL D'ÉDITION (avec sélection technicien) ====================== */
 function EditPlanModal({ plan, isOpen, onClose, onSave }: {
   plan: PlanCorrection;
   isOpen: boolean;
@@ -276,14 +278,28 @@ function EditPlanModal({ plan, isOpen, onClose, onSave }: {
     priorite: plan.priorite,
     dateEcheance: plan.dateEcheance.split('T')[0],
     commentaire: plan.commentaire || '',
+    assigneA: plan.assigne?.id || '',
   });
 
-  if (!isOpen) return null;
+  const [techniciens, setTechniciens] = useState<any[]>([]);
+  const [loadingTech, setLoadingTech] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setLoadingTech(true);
+    fetch('/api/users?role=TECHNICIEN')
+      .then(r => r.json())
+      .then(data => setTechniciens(Array.isArray(data) ? data : data.data || []))
+      .catch(err => console.error(err))
+      .finally(() => setLoadingTech(false));
+  }, [isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(form);
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
@@ -294,10 +310,31 @@ function EditPlanModal({ plan, isOpen, onClose, onSave }: {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* ... (le reste du modal reste inchangé) */}
+          {/* Sélection Technicien */}
+          <div>
+            <label className="text-sm text-slate-400 block mb-1">Technicien assigné</label>
+            <select
+              value={form.assigneA}
+              onChange={(e) => setForm({ ...form, assigneA: e.target.value })}
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3"
+            >
+              <option value="">Non assigné</option>
+              {techniciens.map((tech: any) => (
+                <option key={tech.id} value={tech.id}>
+                  {tech.prenom} {tech.nom} — {tech.email}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Priorité */}
           <div>
             <label className="text-sm text-slate-400">Priorité</label>
-            <select value={form.priorite} onChange={(e) => setForm({ ...form, priorite: e.target.value })} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 mt-1">
+            <select 
+              value={form.priorite} 
+              onChange={(e) => setForm({ ...form, priorite: e.target.value })} 
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 mt-1"
+            >
               <option value="CRITIQUE">Critique</option>
               <option value="HAUTE">Haute</option>
               <option value="MOYENNE">Moyenne</option>
@@ -305,19 +342,35 @@ function EditPlanModal({ plan, isOpen, onClose, onSave }: {
             </select>
           </div>
 
+          {/* Date d'échéance */}
           <div>
             <label className="text-sm text-slate-400">Date d'échéance</label>
-            <input type="date" value={form.dateEcheance} onChange={(e) => setForm({ ...form, dateEcheance: e.target.value })} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 mt-1" />
+            <input 
+              type="date" 
+              value={form.dateEcheance} 
+              onChange={(e) => setForm({ ...form, dateEcheance: e.target.value })} 
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 mt-1" 
+            />
           </div>
 
+          {/* Commentaire */}
           <div>
             <label className="text-sm text-slate-400">Commentaire / Actions</label>
-            <textarea value={form.commentaire} onChange={(e) => setForm({ ...form, commentaire: e.target.value })} rows={4} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 mt-1" />
+            <textarea 
+              value={form.commentaire} 
+              onChange={(e) => setForm({ ...form, commentaire: e.target.value })} 
+              rows={4} 
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 mt-1" 
+            />
           </div>
 
           <div className="flex gap-3 pt-4">
-            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Annuler</Button>
-            <Button type="submit" className="flex-1">Enregistrer</Button>
+            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
+              Annuler
+            </Button>
+            <Button type="submit" className="flex-1">
+              Enregistrer les modifications
+            </Button>
           </div>
         </form>
       </div>

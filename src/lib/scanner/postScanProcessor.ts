@@ -1,6 +1,6 @@
 // src/lib/scanner/postScanProcessor.ts
 import { prisma } from '@/lib/prisma';
-import { Severite, StatutVulnerabilite } from '@prisma/client';
+import { Severite, StatutVulnerabilite, StatutPlan, Priorite } from '@prisma/client';
 
 interface RawVulnerability {
   cveId?: string;
@@ -32,7 +32,11 @@ export async function processScanResults(scanId: string): Promise<{ mappingsCrea
 
   const scan = await prisma.scan.findUnique({
     where: { id: scanId },
-    include: { actif: true, vulnerabilites: true }
+    include: { 
+      actif: true, 
+      vulnerabilites: true,
+      utilisateur: true  // Pour récupérer qui a lancé le scan
+    }
   });
 
   if (!scan) {
@@ -41,7 +45,7 @@ export async function processScanResults(scanId: string): Promise<{ mappingsCrea
   }
 
   if (scan.vulnerabilites.length === 0 && scan.resultatBrut) {
-    await parseAndCreateVulnerabilities(scanId, scan.resultatBrut as RawResults);
+    await parseAndCreateVulnerabilities(scanId, scan.resultatBrut as RawResults, scan.lancerPar);
   }
 
   // Mise à jour dernierScan
@@ -60,7 +64,11 @@ export async function processScanResults(scanId: string): Promise<{ mappingsCrea
   return { mappingsCreated: 0 };
 }
 
-async function parseAndCreateVulnerabilities(scanId: string, rawResults: RawResults) {
+async function parseAndCreateVulnerabilities(
+  scanId: string, 
+  rawResults: RawResults,
+  createdById: string   // ID de la personne qui a lancé le scan
+) {
   const vulnerabilities = rawResults.data ||
                          rawResults.vulnerabilities ||
                          rawResults.results ||
@@ -78,7 +86,8 @@ async function parseAndCreateVulnerabilities(scanId: string, rawResults: RawResu
 
       console.log(`Vuln: "${vuln.titre || vuln.name}" | Severity brute: "${rawSeverity}" → ${severity} | CVSS: ${cvssScore}`);
 
-      await prisma.vulnerabilite.create({
+      // Création de la vulnérabilité
+      const nouvelleVuln = await prisma.vulnerabilite.create({
         data: {
           idScan: scanId,
           cveId: vuln.cveId || vuln.cve || null,
@@ -95,14 +104,60 @@ async function parseAndCreateVulnerabilities(scanId: string, rawResults: RawResu
           impact: vuln.impact || vuln.threat || '',
         }
       });
+
+      // Création automatique du plan pour CRITICAL et HIGH + assignation technicien
+      // Création automatique du plan pour CRITICAL et HIGH
+if (severity === Severite.CRITICAL || severity === Severite.HIGH) {
+  const dateEcheance = calculerDateEcheance(severity);
+  const priorite = severity === Severite.CRITICAL ? Priorite.CRITIQUE : Priorite.HAUTE;
+
+  const plan = await prisma.planCorrection.create({
+    data: {
+      idVulnerabilite: nouvelleVuln.id,
+      assigneA: createdById,
+      priorite,
+      dateEcheance,
+      statut: StatutPlan.A_FAIRE,
+      createdBy: createdById,
+      commentaire: `Plan généré automatiquement après détection (${severity})`,
+    },
+    include: {
+      assigne: {
+        select: { id: true, nom: true, prenom: true, email: true }
+      }
+    }
+  });
+
+  console.log(`[PLAN CREATED] ID: ${plan.id} | assigneA: ${plan.assigneA} | Assigne:`, plan.assigne);
+
+  // Mise à jour de la vulnérabilité
+  await prisma.vulnerabilite.update({
+    where: { id: nouvelleVuln.id },
+    data: {
+      statut: StatutVulnerabilite.EN_COURS,
+      assigneA: createdById
+    }
+  });
+
+  console.log(`✅ Plan de correction créé et assigné pour : ${nouvelleVuln.titre}`);
+}
+  
+
     } catch (err) {
       console.error("Erreur création vulnérabilité:", err);
     }
   }
 }
 
-// Mapping amélioré et plus robuste
-// ✅ AJOUTEZ CES LOGS pour voir ce qui se passe
+// Calcul de la date d'échéance selon sévérité
+function calculerDateEcheance(severite: Severite): Date {
+  const jours = severite === Severite.CRITICAL ? 2 : 7; // 2 jours pour CRITICAL, 7 pour HIGH
+  const date = new Date();
+  date.setDate(date.getDate() + jours);
+  return date;
+}
+
+// Mapping amélioré
 function mapSeverity(sev?: string): Severite {
   console.log(`[MAP_SEVERITY] Entrée: "${sev}"`);
   

@@ -1,9 +1,7 @@
-// src/components/dashboard/DashboardSuperviseur.tsx
 'use client';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, Bug, CheckSquare, FileText, ShieldCheck, Users } from 'lucide-react';
-
+import { LayoutDashboard, Bug, CheckSquare, FileText, ShieldCheck, Users, Clock } from 'lucide-react';
 import KPICards from './KPICards';
 
 interface KPIData {
@@ -19,7 +17,6 @@ interface KPIData {
 
 export default function DashboardSuperviseur() {
   const { data: session } = useSession();
-  
   const [kpis, setKpis] = useState<KPIData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -28,9 +25,11 @@ export default function DashboardSuperviseur() {
       try {
         const res = await fetch('/api/kpis');
         const json = await res.json();
-        if (json.success) setKpis(json.data);
+        if (json.success) {
+          setKpis(json.data);
+        }
       } catch (error) {
-        console.error(error);
+        console.error("Erreur chargement KPIs:", error);
       } finally {
         setIsLoading(false);
       }
@@ -56,22 +55,23 @@ export default function DashboardSuperviseur() {
       <KPICards isLoading={isLoading} kpis={kpis} />
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        {/* Vulnérabilités à Suivre */}
         <div className="xl:col-span-7 bg-slate-950 border border-slate-800 rounded-3xl p-8">
           <h2 className="text-2xl font-semibold mb-6 flex items-center gap-3">
-            <Bug className="text-red-400" /> Vulnérabilités à Suivre
+            <Bug className="text-red-400" /> Vulnérabilités Critiques à Suivre
           </h2>
-          {/* Contenu à développer */}
-          <div className="text-center py-16 text-slate-400 border border-dashed border-slate-700 rounded-2xl">
-            Vue d’ensemble des vulnérabilités en cours (Superviseur)
+          <div className="text-center py-20 text-slate-400 border border-dashed border-slate-700 rounded-2xl">
+            Carte des vulnérabilités critiques (à implémenter)
           </div>
         </div>
 
+        {/* Plans de Correction */}
         <div className="xl:col-span-5 bg-slate-950 border border-slate-800 rounded-3xl p-8">
           <h2 className="text-2xl font-semibold mb-6 flex items-center gap-3">
             <CheckSquare className="text-amber-400" /> Plans de Correction
           </h2>
           <div className="text-center py-16 text-slate-400 border border-dashed border-slate-700 rounded-2xl">
-            Plans en retard / En cours
+            Plans en retard / En cours (à implémenter)
           </div>
         </div>
       </div>
@@ -81,13 +81,18 @@ export default function DashboardSuperviseur() {
           <h2 className="text-2xl font-semibold mb-6 flex items-center gap-3">
             <ShieldCheck className="text-emerald-400" /> Conformité Globale
           </h2>
-          {/* Graphique ou stats */}
+          <div className="text-center py-20 text-slate-400 border border-dashed border-slate-700 rounded-2xl">
+            Graphique de conformité ISO 27001 (à implémenter)
+          </div>
         </div>
+
         <div className="bg-slate-950 border border-slate-800 rounded-3xl p-8">
           <h2 className="text-2xl font-semibold mb-6 flex items-center gap-3">
-            <Users className="text-blue-400" /> Équipes
+            <Users className="text-blue-400" /> Performance des Équipes
           </h2>
-          <div className="text-center py-12 text-slate-400">Statut des techniciens</div>
+          <div className="text-center py-12 text-slate-400">
+            Statut des techniciens et taux de résolution
+          </div>
         </div>
       </div>
     </div>

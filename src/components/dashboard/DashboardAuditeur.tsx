@@ -1,14 +1,30 @@
 'use client';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
-import { 
-  LayoutDashboard, ScanLine, Bug, ShieldCheck, FileText,
-  TrendingUp, AlertTriangle, CheckCircle, Clock, Activity,
-  Users, Target, Download, RefreshCw
+import {
+  LayoutDashboard,
+  ScanLine,
+  Bug,
+  ShieldCheck,
+  FileText,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  RefreshCw,
+  Download,
 } from 'lucide-react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts';
 import { toast } from 'react-hot-toast';
 
@@ -35,15 +51,14 @@ interface KPIData {
     dateDecouverte: string;
     statut: string;
   }>;
-  role: string;
 }
 
 // Couleurs pour les graphiques
 const SEVERITY_COLORS = {
-  critique: '#ef4444',
-  haute: '#f97316',
-  moyenne: '#eab308',
-  faible: '#22c55e'
+  CRITICAL: '#ef4444',
+  HIGH: '#f97316',
+  MEDIUM: '#eab308',
+  LOW: '#22c55e',
 };
 
 export default function DashboardAuditeur() {
@@ -61,25 +76,23 @@ export default function DashboardAuditeur() {
 
       const res = await fetch('/api/kpis', {
         cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache' }
+        headers: { 'Cache-Control': 'no-cache' },
       });
 
-      if (!res.ok) {
-        throw new Error(`Erreur HTTP: ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`Erreur HTTP: ${res.status}`);
 
       const json = await res.json();
 
       if (json.success) {
         setKpis(json.data);
-        toast.success('Données mises à jour');
+        toast.success('Données actualisées avec succès');
       } else {
-        throw new Error(json.error || 'Erreur lors du chargement des données');
+        throw new Error(json.error || 'Erreur lors du chargement des KPIs');
       }
     } catch (err: any) {
       console.error('Erreur KPIs:', err);
       setError(err.message);
-      toast.error(err.message);
+      toast.error('Impossible de charger les données');
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -90,7 +103,6 @@ export default function DashboardAuditeur() {
     fetchKPIs();
   }, []);
 
-  // État de chargement
   if (error) {
     return (
       <div className="p-8 text-red-400 bg-red-950/30 border border-red-900 rounded-3xl">
@@ -99,7 +111,7 @@ export default function DashboardAuditeur() {
           <h2 className="text-xl font-bold">Erreur de chargement</h2>
         </div>
         <p className="mb-6">{error}</p>
-        <button 
+        <button
           onClick={fetchKPIs}
           className="px-6 py-2 bg-red-900 hover:bg-red-800 rounded-xl text-white transition-colors"
         >
@@ -111,7 +123,7 @@ export default function DashboardAuditeur() {
 
   return (
     <div className="space-y-8">
-      {/* En-tête avec rafraîchissement */}
+      {/* En-tête */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="p-4 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-2xl">
@@ -120,24 +132,23 @@ export default function DashboardAuditeur() {
           <div>
             <h1 className="text-4xl font-bold text-white">Tableau de Bord Auditeur</h1>
             <p className="text-slate-400 mt-1">
-              Bienvenue, {session?.user?.name || 'Auditeur'} • Vue d'ensemble globale
+              Bienvenue, {session?.user?.name || 'Auditeur'} • Vue d’ensemble globale
             </p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-4">
           <div className="text-sm text-slate-400">
             <Clock className="inline h-4 w-4 mr-1" />
-            Mis à jour : {kpis?.lastUpdated 
+            Mis à jour : {kpis?.lastUpdated
               ? new Date(kpis.lastUpdated).toLocaleString('fr-FR')
               : '...'}
           </div>
-          
+
           <button
             onClick={fetchKPIs}
             disabled={refreshing}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 
-                       rounded-xl text-slate-300 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             Actualiser
@@ -145,59 +156,8 @@ export default function DashboardAuditeur() {
         </div>
       </div>
 
-      {/* KPIs Globaux */}
+      {/* KPIs Principaux */}
       <KPICards isLoading={isLoading} kpis={kpis} />
-
-      {/* Ligne 2 : Statistiques avancées */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-slate-950 border-slate-800">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Activity className="h-5 w-5 text-purple-400" />
-              <div>
-                <p className="text-2xl font-bold text-white">{kpis?.scanCount ?? 0}</p>
-                <p className="text-xs text-slate-400">Scans réalisés</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-slate-950 border-slate-800">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Target className="h-5 w-5 text-cyan-400" />
-              <div>
-                <p className="text-2xl font-bold text-white">{kpis?.activeAssets ?? 0}</p>
-                <p className="text-xs text-slate-400">Actifs surveillés</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-slate-950 border-slate-800">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="h-5 w-5 text-emerald-400" />
-              <div>
-                <p className="text-2xl font-bold text-white">{kpis?.vulnsCorrigees ?? 0}</p>
-                <p className="text-xs text-slate-400">Vulnérabilités corrigées</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-slate-950 border-slate-800">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Clock className="h-5 w-5 text-amber-400" />
-              <div>
-                <p className="text-2xl font-bold text-white">{kpis?.delaiMoyenCorrection ?? 0}j</p>
-                <p className="text-xs text-slate-400">Délai moyen correction</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Graphiques */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -211,7 +171,7 @@ export default function DashboardAuditeur() {
           </CardHeader>
           <CardContent>
             <div className="h-80">
-              {(kpis?.temporalTrends && kpis.temporalTrends.length > 0) ? (
+              {kpis?.temporalTrends && kpis.temporalTrends.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={kpis.temporalTrends}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
@@ -222,18 +182,22 @@ export default function DashboardAuditeur() {
                         backgroundColor: '#0f172a',
                         border: '1px solid #1e293b',
                         borderRadius: '8px',
-                        color: '#f1f5f9'
+                        color: '#f1f5f9',
                       }}
                     />
-                    <Line 
-                      type="monotone" dataKey="vulns" 
-                      stroke="#ef4444" strokeWidth={3}
+                    <Line
+                      type="monotone"
+                      dataKey="vulns"
+                      stroke="#ef4444"
+                      strokeWidth={3}
                       dot={{ r: 5, fill: '#ef4444' }}
                       name="Vulnérabilités"
                     />
-                    <Line 
-                      type="monotone" dataKey="scoreMoyen" 
-                      stroke="#22c55e" strokeWidth={3}
+                    <Line
+                      type="monotone"
+                      dataKey="scoreMoyen"
+                      stroke="#22c55e"
+                      strokeWidth={3}
                       dot={{ r: 5, fill: '#22c55e' }}
                       name="Score moyen CVSS"
                     />
@@ -241,7 +205,7 @@ export default function DashboardAuditeur() {
                 </ResponsiveContainer>
               ) : (
                 <div className="h-full flex items-center justify-center text-slate-500">
-                  Aucune donnée d'évolution disponible
+                  Aucune donnée d’évolution disponible pour le moment.
                 </div>
               )}
             </div>
@@ -253,22 +217,22 @@ export default function DashboardAuditeur() {
           <CardHeader>
             <CardTitle className="flex items-center gap-3">
               <Bug className="text-red-400" />
-              Distribution CVSS
+              Distribution par Sévérité
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-64">
-              {(kpis?.cvssDistribution && kpis.cvssDistribution.length > 0) ? (
+              {kpis?.cvssDistribution && kpis.cvssDistribution.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={kpis.cvssDistribution}
                       cx="50%"
                       cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
+                      innerRadius={58}
+                      outerRadius={98}
                       dataKey="value"
-                      paddingAngle={3}
+                      paddingAngle={4}
                     >
                       {kpis.cvssDistribution.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
@@ -278,24 +242,27 @@ export default function DashboardAuditeur() {
                       contentStyle={{
                         backgroundColor: '#0f172a',
                         border: '1px solid #1e293b',
-                        borderRadius: '8px'
+                        borderRadius: '8px',
                       }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
                 <div className="h-full flex items-center justify-center text-slate-500">
-                  Aucune donnée de distribution disponible
+                  Aucune donnée de distribution disponible.
                 </div>
               )}
             </div>
 
             {/* Légende */}
             {kpis?.cvssDistribution && kpis.cvssDistribution.length > 0 && (
-              <div className="grid grid-cols-2 gap-2 mt-4">
+              <div className="grid grid-cols-2 gap-3 mt-6">
                 {kpis.cvssDistribution.map((item, i) => (
                   <div key={i} className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
+                    <div
+                      className="h-3 w-3 rounded-full"
+                      style={{ backgroundColor: item.color }}
+                    />
                     <span className="text-xs text-slate-400">
                       {item.name} ({item.value})
                     </span>
@@ -307,9 +274,9 @@ export default function DashboardAuditeur() {
         </Card>
       </div>
 
-      {/* Section Conformité & Activité */}
+      {/* Conformité + Dernières Vulnérabilités */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Score de Conformité */}
+        {/* Score de Conformité ISO 27001 */}
         <Card className="bg-slate-950 border-slate-800">
           <CardHeader>
             <CardTitle className="flex items-center gap-3">
@@ -317,52 +284,60 @@ export default function DashboardAuditeur() {
               Niveau de Conformité ISO 27001
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-center py-8">
+          <CardContent className="text-center py-10">
             <div className="relative inline-flex items-center justify-center">
-              <svg className="w-32 h-32 transform -rotate-90">
-                <circle 
-                  cx="64" cy="64" r="56" 
-                  fill="none" stroke="#1e293b" strokeWidth="8"
+              <svg className="w-36 h-36 -rotate-12" viewBox="0 0 128 128">
+                <circle
+                  cx="64"
+                  cy="64"
+                  r="56"
+                  fill="none"
+                  stroke="#1e293b"
+                  strokeWidth="10"
                 />
-                <circle 
-                  cx="64" cy="64" r="56" 
-                  fill="none" stroke="#22c55e" strokeWidth="8"
+                <circle
+                  cx="64"
+                  cy="64"
+                  r="56"
+                  fill="none"
+                  stroke="#22c55e"
+                  strokeWidth="10"
                   strokeDasharray={`${2 * Math.PI * 56}`}
                   strokeDashoffset={`${2 * Math.PI * 56 * (1 - (kpis?.scoreISO27001 ?? 0) / 100)}`}
                   strokeLinecap="round"
                   className="transition-all duration-1000"
                 />
               </svg>
-              <span className="absolute text-3xl font-bold text-emerald-400">
-                {kpis?.scoreISO27001 ?? 0}%
-              </span>
+              <div className="absolute text-center">
+                <span className="text-4xl font-bold text-emerald-400">
+                  {kpis?.scoreISO27001 ?? 0}%
+                </span>
+              </div>
             </div>
-            <p className="text-slate-400 mt-4">Score de conformité global</p>
-            
-            <div className="mt-6 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400">Vulnérabilités résolues</span>
-                <span className="text-emerald-400 font-medium">
+
+            <div className="mt-8 space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Vulnérabilités critiques résolues</span>
+                <span className="text-emerald-400 font-semibold">
                   {kpis?.pourcentageCritiquesResolus ?? 0}%
                 </span>
               </div>
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between">
                 <span className="text-slate-400">Objectif minimum</span>
                 <span className="text-amber-400 font-medium">70%</span>
               </div>
             </div>
 
-            <a 
-              href="/conformite" 
-              className="mt-8 inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 
-                         transition-colors text-sm"
+            <a
+              href="/conformite"
+              className="mt-8 inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors text-sm font-medium"
             >
-              Voir les détails de conformité →
+              Voir le détail de la conformité →
             </a>
           </CardContent>
         </Card>
 
-        {/* Dernières vulnérabilités */}
+        {/* Dernières Vulnérabilités */}
         <Card className="bg-slate-950 border-slate-800">
           <CardHeader>
             <CardTitle className="flex items-center gap-3">
@@ -371,49 +346,53 @@ export default function DashboardAuditeur() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {(kpis?.recentVulnerabilities && kpis.recentVulnerabilities.length > 0) ? (
+            {kpis?.recentVulnerabilities && kpis.recentVulnerabilities.length > 0 ? (
               <div className="space-y-3">
-                {kpis.recentVulnerabilities.slice(0, 5).map((vuln, i) => (
-                  <div key={vuln.id || i} className="p-3 bg-slate-900 rounded-xl border border-slate-800">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className="h-2.5 w-2.5 rounded-full mt-1"
-                          style={{ 
-                            backgroundColor: SEVERITY_COLORS[vuln.severite as keyof typeof SEVERITY_COLORS] 
-                          }}
-                        />
-                        <div>
-                          <p className="text-sm font-medium text-slate-200 truncate max-w-[200px]">
-                            {vuln.titre}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {new Date(vuln.dateDecouverte).toLocaleDateString('fr-FR')}
-                          </p>
-                        </div>
+                {kpis.recentVulnerabilities.slice(0, 5).map((vuln) => (
+                  <div
+                    key={vuln.id}
+                    className="flex items-start justify-between p-4 bg-slate-900 rounded-2xl border border-slate-800 hover:border-slate-700 transition-colors"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className="mt-1.5 h-3 w-3 rounded-full flex-shrink-0"
+                        style={{
+                          backgroundColor:
+                            SEVERITY_COLORS[vuln.severite as keyof typeof SEVERITY_COLORS] ||
+                            '#64748b',
+                        }}
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-white line-clamp-2">
+                          {vuln.titre}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {new Date(vuln.dateDecouverte).toLocaleDateString('fr-FR')}
+                        </p>
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        vuln.statut === 'ouvert' ? 'bg-red-900/50 text-red-400' :
-                        vuln.statut === 'en_cours' ? 'bg-amber-900/50 text-amber-400' :
-                        'bg-emerald-900/50 text-emerald-400'
-                      }`}>
-                        {vuln.statut}
-                      </span>
                     </div>
+                    <span
+                      className={`text-xs px-3 py-1 rounded-full font-medium ${
+                        vuln.statut.toLowerCase().includes('corrig')
+                          ? 'bg-emerald-900/60 text-emerald-400'
+                          : 'bg-red-900/60 text-red-400'
+                      }`}
+                    >
+                      {vuln.statut}
+                    </span>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12 text-slate-500">
-                <CheckCircle className="h-12 w-12 mx-auto mb-4 text-emerald-400" />
-                <p>Aucune vulnérabilité récente détectée</p>
+              <div className="text-center py-16 text-slate-500">
+                <CheckCircle className="h-14 w-14 mx-auto mb-4 text-emerald-400" />
+                <p>Aucune vulnérabilité récente</p>
               </div>
             )}
 
-            <a 
-              href="/vulnerabilites" 
-              className="mt-6 inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 
-                         transition-colors text-sm"
+            <a
+              href="/vulnerabilites"
+              className="mt-6 inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors text-sm font-medium"
             >
               Voir toutes les vulnérabilités →
             </a>
@@ -421,7 +400,7 @@ export default function DashboardAuditeur() {
         </Card>
       </div>
 
-      {/* Dernier scan & Rapports */}
+      {/* Dernier Scan + Rapports */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-slate-950 border-slate-800">
           <CardHeader>
@@ -430,36 +409,34 @@ export default function DashboardAuditeur() {
               Dernière Analyse
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-center py-8">
+          <CardContent className="text-center py-10">
             {kpis?.lastScan ? (
-              <>
-                <div className="text-2xl font-bold text-white mb-2">
+              <div className="space-y-3">
+                <div className="text-2xl font-bold text-white">
                   {new Date(kpis.lastScan).toLocaleDateString('fr-FR', {
+                    weekday: 'long',
                     day: 'numeric',
                     month: 'long',
                     year: 'numeric',
                     hour: '2-digit',
-                    minute: '2-digit'
+                    minute: '2-digit',
                   })}
                 </div>
                 <p className="text-slate-400">Dernier scan de sécurité effectué</p>
-              </>
+              </div>
             ) : (
-              <>
-                <div className="text-2xl font-bold text-amber-400 mb-2">
-                  Aucun scan trouvé
-                </div>
-                <p className="text-slate-400">Lancez votre premier scan de sécurité</p>
-              </>
+              <div>
+                <div className="text-2xl font-bold text-amber-400 mb-2">Aucun scan trouvé</div>
+                <p className="text-slate-400">Lancez votre premier scan</p>
+              </div>
             )}
-            
-            <a 
-              href="/scans" 
-              className="mt-8 inline-flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 
-                         rounded-xl text-white transition-colors"
+
+            <a
+              href="/scans"
+              className="mt-8 inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-xl text-white transition-colors"
             >
               <ScanLine className="h-4 w-4" />
-              Voir les scans
+              Accéder aux scans
             </a>
           </CardContent>
         </Card>
@@ -468,48 +445,43 @@ export default function DashboardAuditeur() {
           <CardHeader>
             <CardTitle className="flex items-center gap-3">
               <FileText className="text-purple-400" />
-              Rapports d'Audit
+              Rapports d’Audit
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-center py-8">
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <Download className="h-6 w-6 text-purple-400" />
-              <span className="text-2xl font-bold text-white">Générer</span>
+          <CardContent className="text-center py-10">
+            <div className="flex justify-center gap-2 mb-6">
+              <Download className="h-8 w-8 text-purple-400" />
             </div>
-            <p className="text-slate-400 mb-6">
-              Exportez vos rapports d'audit en PDF, Excel ou JSON
+            <p className="text-slate-400 mb-8">
+              Exportez vos rapports complets en plusieurs formats
             </p>
-            
+
             <div className="flex justify-center gap-3">
-              <a 
-                href="/rapports?format=pdf" 
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg 
-                           text-white text-sm transition-colors"
+              <a
+                href="/rapports?format=pdf"
+                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 rounded-xl text-white text-sm font-medium transition"
               >
                 PDF
               </a>
-              <a 
-                href="/rapports?format=xlsx" 
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 
-                           rounded-lg text-white text-sm transition-colors"
+              <a
+                href="/rapports?format=xlsx"
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 rounded-xl text-white text-sm font-medium transition"
               >
                 Excel
               </a>
-              <a 
-                href="/rapports?format=json" 
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 
-                           rounded-lg text-white text-sm transition-colors"
+              <a
+                href="/rapports?format=json"
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 rounded-xl text-white text-sm font-medium transition"
               >
                 JSON
               </a>
             </div>
 
-            <a 
-              href="/rapports" 
-              className="mt-8 inline-block text-blue-400 hover:text-blue-300 
-                         transition-colors text-sm"
+            <a
+              href="/rapports"
+              className="mt-10 block text-blue-400 hover:text-blue-300 transition-colors text-sm font-medium"
             >
-              Accéder à tous les rapports →
+              Accéder à la bibliothèque des rapports →
             </a>
           </CardContent>
         </Card>

@@ -18,14 +18,13 @@ export default function ActifModal({
   initialData,
   mode
 }: ActifModalProps) {
-
   const [formData, setFormData] = useState({
     nom: initialData?.nom || '',
     type: initialData?.type || 'SERVEUR',
     adresseIP: initialData?.adresseIP || '',
     hostname: initialData?.hostname || '',
     localisation: initialData?.localisation || '',
-    criticite: initialData?.criticite || 'MOYEN',   // ← Ajouté
+    criticite: initialData?.criticite || '',   // ← Vide par défaut
   });
 
   // Mise à jour des données en mode édition
@@ -37,7 +36,7 @@ export default function ActifModal({
         adresseIP: initialData.adresseIP || '',
         hostname: initialData.hostname || '',
         localisation: initialData.localisation || '',
-        criticite: initialData.criticite || 'MOYEN',
+        criticite: initialData.criticite || '',
       });
     }
   }, [initialData]);
@@ -53,13 +52,12 @@ export default function ActifModal({
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
       <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-lg p-6">
-        
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-white">
             {mode === 'create' ? 'Nouvel Actif' : 'Modifier Actif'}
           </h2>
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             className="text-slate-400 hover:text-white transition-colors"
           >
             <X className="w-6 h-6" />
@@ -67,7 +65,6 @@ export default function ActifModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          
           <div>
             <label className="text-slate-400 text-sm block mb-1">Nom de l’Actif *</label>
             <input
@@ -133,20 +130,21 @@ export default function ActifModal({
             />
           </div>
 
-          {/* Criticité */}
+          {/* Criticité - Optionnel maintenant */}
           <div>
-            <label className="text-slate-400 text-sm block mb-1">Criticité *</label>
+            <label className="text-slate-400 text-sm block mb-1">Criticité</label>
             <select
               value={formData.criticite}
               onChange={(e) => setFormData({ ...formData, criticite: e.target.value as NiveauCriticite })}
               className="w-full bg-slate-950 border border-slate-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
-              required
             >
+              <option value="">Non définie (à évaluer)</option>
               <option value="CRITIQUE">Critique</option>
               <option value="ELEVE">Élevé</option>
               <option value="MOYEN">Moyen</option>
               <option value="BAS">Faible</option>
             </select>
+            <p className="text-xs text-slate-500 mt-1">Optionnel - Peut être défini après scan</p>
           </div>
 
           <div className="flex gap-3 pt-4">

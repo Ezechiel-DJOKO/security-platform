@@ -111,24 +111,34 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "ID requis" }, { status: 400 });
     }
 
+    // Gestion propre de la criticité (vide = NULL)
+    let criticiteData = undefined;
+    if (body.criticite && body.criticite !== '') {
+      criticiteData = body.criticite as NiveauCriticite;
+    }
+
     const actif = await prisma.actif.update({
       where: { id },
       data: {
         nom: body.nom,
         type: body.type,
-        adresseIP: body.adresseIP,
-        hostname: body.hostname,
-        localisation: body.localisation,
-        criticite: body.criticite,
+        adresseIP: body.adresseIP || null,
+        hostname: body.hostname || null,
+        localisation: body.localisation || null,
+        criticite: criticiteData,   // ← NULL si vide
       },
     });
 
     await logAuditEvent(session.user.id, "MODIFICATION", "ACTIF", { id }).catch(() => {});
 
     return NextResponse.json({ success: true, data: actif });
+
   } catch (error: any) {
     console.error("Erreur PUT actif:", error);
-    return NextResponse.json({ success: false, error: "Erreur modification" }, { status: 500 });
+    return NextResponse.json({ 
+      success: false, 
+      error: error.message || "Erreur lors de la modification" 
+    }, { status: 500 });
   }
 }
 

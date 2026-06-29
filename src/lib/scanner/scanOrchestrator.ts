@@ -7,45 +7,41 @@ import { sendAlert } from '@/lib/alertService';
 // ============================================================
 // DÉLAIS PAR SÉVÉRITÉ
 // ============================================================
-
 const DELAIS_JOURS: Record<Severite, number> = {
-  CRITICAL : 2,
-  HIGH     : 7,
-  MEDIUM   : 30,
-  LOW      : 90,
+  CRITICAL: 2,
+  HIGH: 7,
+  MEDIUM: 30,
+  LOW: 90,
 };
 
 const PRIORITE_MAP: Record<Severite, Priorite> = {
-  CRITICAL : Priorite.CRITIQUE,
-  HIGH     : Priorite.HAUTE,
-  MEDIUM   : Priorite.MOYENNE,
-  LOW      : Priorite.BASSE,
+  CRITICAL: Priorite.CRITIQUE,
+  HIGH: Priorite.HAUTE,
+  MEDIUM: Priorite.MOYENNE,
+  LOW: Priorite.BASSE,
 };
 
 function calculerDateEcheance(severite: Severite, dateDepart?: Date): Date {
-  const base  = dateDepart ?? new Date();
-  const jours = DELAIS_JOURS[severite];
-  const date  = new Date(base);
-  date.setDate(date.getDate() + jours);
+  const base = dateDepart ?? new Date();
+  const date = new Date(base);
+  date.setDate(date.getDate() + DELAIS_JOURS[severite]);
   return date;
 }
 
 // ============================================================
 // ⭐ PLANS AUTO — CRITICAL + HIGH uniquement
 // ============================================================
-
 async function creerPlansAutomatiques(
-  scanId    : string,
-  createdBy : string,
+  scanId: string,
+  createdBy: string,
 ): Promise<void> {
-
   const vulnsUrgentes = await prisma.vulnerabilite.findMany({
     where: {
-      idScan   : scanId,
-      statut   : StatutVulnerabilite.OUVERTE,
+      idScan: scanId,
+      statut: StatutVulnerabilite.OUVERTE,
       deletedAt: null,
-      severite : { in: [Severite.CRITICAL, Severite.HIGH] },
-      plan     : { none: {} },
+      severite: { in: [Severite.CRITICAL, Severite.HIGH] },
+      plan: { none: {} },
     }
   });
 
@@ -63,64 +59,68 @@ async function creerPlansAutomatiques(
         vuln.dateDecouverte
       );
 
-      await prisma.$transaction(async (tx) => {
-        await tx.planCorrection.create({
+      const plan = await prisma.$transaction(async (tx) => {
+        const p = await tx.planCorrection.create({
           data: {
-            idVulnerabilite : vuln.id,
-            priorite        : PRIORITE_MAP[vuln.severite as Severite],
+            idVulnerabilite: vuln.id,
+            assigneA: createdBy,
+            priorite: PRIORITE_MAP[vuln.severite as Severite],
             dateEcheance,
-            statut          : StatutPlan.A_FAIRE,
-            commentaire     : `⚡ Auto-généré — ${vuln.severite}. Délai : ${DELAIS_JOURS[vuln.severite as Severite]} jours.`,
+            statut: StatutPlan.A_FAIRE,
+            commentaire: `⚡ Auto-généré après scan — ${vuln.severite}. Délai : ${DELAIS_JOURS[vuln.severite as Severite]} jours.`,
             createdBy,
+          },
+          include: {
+            assigne: {
+              select: { id: true, nom: true, prenom: true, email: true }
+            }
           }
         });
 
+        console.log(`[PLAN CREATED] ID: ${p.id} | assigneA: ${p.assigneA} | Assigne:`, p.assigne);
+
         await tx.vulnerabilite.update({
           where: { id: vuln.id },
-          data : { statut: StatutVulnerabilite.EN_COURS },
+          data: { statut: StatutVulnerabilite.EN_COURS },
         });
+
+        return p;
       });
 
       console.log(
-        `[PLAN] ✅ "${vuln.titre}" | ${vuln.severite} | ` +
-        `Échéance: ${dateEcheance.toLocaleDateString('fr-FR')}`
+        `[PLAN] ✅ "${vuln.titre}" | ${vuln.severite} | Assigné à : ${createdBy} | ` +
+        `Échéance : ${dateEcheance.toLocaleDateString('fr-FR')}`
       );
-
     } catch (err: any) {
       console.error(`[PLAN] ❌ "${vuln.titre}":`, err.message);
     }
   }
 
-  // Log MEDIUM/LOW
   const nbMoyennes = await prisma.vulnerabilite.count({
     where: {
-      idScan  : scanId,
+      idScan: scanId,
       severite: { in: [Severite.MEDIUM, Severite.LOW] },
-      statut  : StatutVulnerabilite.OUVERTE,
+      statut: StatutVulnerabilite.OUVERTE,
     }
   });
 
   if (nbMoyennes > 0) {
-    console.log(`[PLAN] ℹ️  ${nbMoyennes} failles MEDIUM/LOW → triage manuel requis`);
+    console.log(`[PLAN] ℹ️ ${nbMoyennes} failles MEDIUM/LOW → triage manuel requis`);
   }
 }
-
 // ============================================================
 // ORCHESTRATEUR PRINCIPAL
 // ============================================================
-
 export async function orchestrateScan(scanId: string) {
   console.log(`🚀 [ORCHESTRATOR] Début orchestration scan ${scanId}`);
-
   try {
-    // 1. Mise en cours
     await prisma.scan.update({
       where: { id: scanId },
-      data : { statut: StatutScan.EN_COURS, debut: new Date() }
+      data: { statut: StatutScan.EN_COURS, debut: new Date() }
     });
 
     const scan = await prisma.scan.findUnique({
-      where  : { id: scanId },
+      where: { id: scanId },
       include: { actif: true }
     });
 
@@ -128,35 +128,29 @@ export async function orchestrateScan(scanId: string) {
 
     console.log(`📡 [ORCHESTRATOR] Lancement scan sur ${scan.cible || scan.actif.adresseIP}`);
 
-    // 2. Lancement du scan
     await startOpenvasScan(
       scan.cible || scan.actif.adresseIP || "",
       scan.id
     );
 
-    // 3. Post-traitement
     await processScanResults(scanId);
 
-    // ⭐ 4. Création automatique des plans CRITICAL + HIGH
     await creerPlansAutomatiques(scanId, scan.lancerPar);
 
-    // 5. Finalisation
     const finScan = new Date();
-
     await prisma.scan.update({
       where: { id: scanId },
-      data : {
+      data: {
         statut: StatutScan.TERMINE,
-        fin   : finScan,
-        duree : Math.floor((finScan.getTime() - scan.debut!.getTime()) / 1000)
+        fin: finScan,
+        duree: Math.floor((finScan.getTime() - scan.debut!.getTime()) / 1000)
       }
     });
 
-    // Mise à jour actif
     try {
       const updated = await prisma.actif.update({
-        where : { id: scan.idActif },
-        data  : { dernierScan: finScan },
+        where: { id: scan.idActif },
+        data: { dernierScan: finScan },
         select: { nom: true, dernierScan: true }
       });
       console.log(`✅ [SUCCESS] dernierScan mis à jour pour ${updated.nom}`);
@@ -164,17 +158,16 @@ export async function orchestrateScan(scanId: string) {
       console.error(`❌ [ERROR] Échec mise à jour dernierScan:`, err.message);
     }
 
-    // 6. Alertes
     const criticalCount = await prisma.vulnerabilite.count({
       where: { idScan: scanId, severite: { in: ['CRITICAL', 'HIGH'] } }
     });
 
     await sendAlert({
       scanId,
-      type    : 'SCAN_COMPLETED',
-      message : `Scan terminé sur ${scan.actif.nom} - ${criticalCount} vulnérabilités critiques`,
+      type: 'SCAN_COMPLETED',
+      message: `Scan terminé sur ${scan.actif.nom} - ${criticalCount} vulnérabilités critiques`,
       severity: criticalCount > 0 ? 'CRITICAL' : 'INFO',
-      userId  : scan.lancerPar
+      userId: scan.lancerPar
     });
 
     console.log(`✅ [ORCHESTRATOR] Orchestration terminée pour ${scanId}`);
@@ -182,12 +175,10 @@ export async function orchestrateScan(scanId: string) {
 
   } catch (error: any) {
     console.error(`❌ [ORCHESTRATOR] Erreur:`, error.message);
-
     await prisma.scan.update({
       where: { id: scanId },
-      data : { statut: StatutScan.ECHEC, erreur: error.message, fin: new Date() }
+      data: { statut: StatutScan.ECHEC, erreur: error.message, fin: new Date() }
     });
-
     return { success: false, error: error.message };
   }
 }

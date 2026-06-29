@@ -1,8 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from "next-auth";
+import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts, PDFFont, PDFPage } from 'pdf-lib';
+
+// ─── Nettoyage du texte (supprime les emojis et caractères non supportés) ───
+function sanitizeText(text: string | null | undefined): string {
+  if (!text) return '';
+  return text
+    .replace(/[\u{1F600}-\u{1F64F}]/gu, '')
+    .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')
+    .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')
+    .replace(/[\u{2600}-\u{26FF}]/gu, '')
+    .replace(/[\u{2700}-\u{27BF}]/gu, '')
+    .replace(/[^\x00-\xFF]/g, '')
+    .trim();
+}
+
+function drawWrappedText(
+  page: PDFPage,
+  text: string,
+  x: number,
+  y: number,
+  font: PDFFont,
+  size: number,
+  maxWidth: number,
+  color = rgb(0.15, 0.15, 0.15),
+  lineHeight = 15
+): number {
+  if (!text) return y;
+  const paragraphs = text.split('\n');
+  let currentY = y;
+
+  for (const paragraph of paragraphs) {
+    const words = paragraph.split(' ');
+    let line = '';
+
+    for (const word of words) {
+      const testLine = line ? `${line} ${word}` : word;
+      if (font.widthOfTextAtSize(testLine, size) > maxWidth && line !== '') {
+        page.drawText(line, { x, y: currentY, size, font, color });
+        line = word;
+        currentY -= lineHeight;
+      } else {
+        line = testLine;
+      }
+    }
+    if (line) {
+      page.drawText(line, { x, y: currentY, size, font, color });
+      currentY -= lineHeight;
+    }
+  }
+  return currentY - 5;
+}
 
 export async function GET(
   req: NextRequest,
@@ -11,203 +61,193 @@ export async function GET(
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
 
-  // ✅ prisma.utilisateur
   const utilisateur = await prisma.utilisateur.findUnique({
     where: { id: session.user.id },
-    select: { role: true }
+    select: { role: true },
   });
 
   if (utilisateur?.role !== 'AUDITEUR') {
-    return NextResponse.json({ error: "Acces reserve aux auditeurs" }, { status: 403 });
+    return NextResponse.json({ error: 'Accès réservé aux auditeurs' }, { status: 403 });
   }
 
   const { id: planId } = await params;
 
-  if (!planId) {
-    return NextResponse.json({ error: "ID du plan manquant" }, { status: 400 });
-  }
-
   try {
-    // ✅ Pas de auditeurId → on cherche juste par id
     const plan = await prisma.planCorrection.findUnique({
       where: { id: planId },
       include: {
         vulnerabilite: true,
-        // ✅ relation "assigne" (PlanAssigneA)
-        assigne: {
-          select: {
-            nom: true,
-            prenom: true,
-            email: true
-          }
-        },
+        assigne: { select: { nom: true, prenom: true, email: true } },
+        createur: { select: { nom: true, prenom: true, email: true } }, // ← Ajouté
       },
     });
 
     if (!plan) {
-      return NextResponse.json({ error: "Plan non trouve" }, { status: 404 });
+      return NextResponse.json({ error: 'Plan non trouvé' }, { status: 404 });
     }
 
-    // ── Génération PDF ──────────────────────────────────────
-
-    const pdfDoc   = await PDFDocument.create();
-    const page     = pdfDoc.addPage([595, 842]);
-    const { height } = page.getSize();
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([595, 842]);
+    const { height, width } = page.getSize();
+    const margin = 50;
+    const maxWidth = width - margin * 2;
 
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const font     = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    let y = height - 80;
+    let y = height - 70;
 
-    // En-tete
+    // Header
     page.drawText("RAPPORT D'ASSIGNATION", {
-      x: 50, y, size: 24, font: boldFont, color: rgb(0.1, 0.1, 0.6),
+      x: margin,
+      y,
+      size: 26,
+      font: boldFont,
+      color: rgb(0.05, 0.15, 0.55),
     });
-    y -= 8;
-    page.drawLine({
-      start: { x: 50, y }, end: { x: 545, y },
-      thickness: 2, color: rgb(0.1, 0.1, 0.6)
+    y -= 25;
+    page.drawRectangle({
+      x: margin,
+      y: y + 5,
+      width: maxWidth,
+      height: 3,
+      color: rgb(0.05, 0.15, 0.55),
     });
-
     y -= 35;
+
     page.drawText(`Auditeur : ${session.user.name || session.user.email}`, {
-      x: 50, y, size: 13, font,
+      x: margin,
+      y,
+      size: 13,
+      font,
     });
-    y -= 22;
-    page.drawText(`Date du rapport : ${new Date().toLocaleDateString('fr-FR')}`, {
-      x: 50, y, size: 12, font, color: rgb(0.3, 0.3, 0.3)
-    });
-
-    // Statut avec couleur
-    y -= 30;
-    let sr = 0.8, sg = 0.6, sb = 0.0;
-    let statutLabel = 'En cours';
-    if (plan.statut === 'TERMINE')   { sr = 0;   sg = 0.6; sb = 0;   statutLabel = 'Termine';   }
-    if (plan.statut === 'EN_RETARD') { sr = 0.8; sg = 0;   sb = 0;   statutLabel = 'En retard'; }
-    if (plan.statut === 'ANNULE')    { sr = 0.5; sg = 0.5; sb = 0.5; statutLabel = 'Annule';    }
-    if (plan.statut === 'VERIFIE')   { sr = 0;   sg = 0.4; sb = 0.8; statutLabel = 'Verifie';   }
-
-    page.drawText(`Statut : ${statutLabel}`, {
-      x: 50, y, size: 14, font: boldFont, color: rgb(sr, sg, sb)
+    y -= 20;
+    page.drawText(`Généré le : ${new Date().toLocaleDateString('fr-FR')}`, {
+      x: margin,
+      y,
+      size: 12,
+      font,
+      color: rgb(0.4, 0.4, 0.4),
     });
 
-    // Vulnerabilite
+    // Statut
+    y -= 35;
+    const statutColors: Record<string, ReturnType<typeof rgb>> = {
+      TERMINE: rgb(0.0, 0.55, 0.2),
+      EN_RETARD: rgb(0.85, 0.1, 0.1),
+      EN_COURS: rgb(0.9, 0.55, 0.0),
+      VERIFIE: rgb(0.0, 0.4, 0.8),
+    };
+    const statutColor = statutColors[plan.statut] || rgb(0.4, 0.4, 0.4);
+
+    page.drawText(`Statut : ${plan.statut}`, {
+      x: margin,
+      y,
+      size: 14,
+      font: boldFont,
+      color: statutColor,
+    });
+
     y -= 45;
-    page.drawText("VULNERABILITE ASSIGNEE", {
-      x: 50, y, size: 16, font: boldFont,
-    });
-    y -= 8;
-    page.drawLine({
-      start: { x: 50, y }, end: { x: 545, y },
-      thickness: 1, color: rgb(0.8, 0.8, 0.8)
-    });
 
-    y -= 28;
-    page.drawText(`Titre : ${plan.vulnerabilite.titre}`, {
-      x: 70, y, size: 12, font,
+    // Section Vulnérabilité
+    page.drawText('VULNÉRABILITÉ ASSIGNÉE', {
+      x: margin,
+      y,
+      size: 16,
+      font: boldFont,
+      color: rgb(0.1, 0.1, 0.1),
     });
     y -= 22;
 
-    if (plan.vulnerabilite.cveId) {
-      page.drawText(`CVE : ${plan.vulnerabilite.cveId}`, { x: 70, y, size: 12, font });
-      y -= 22;
-    }
+    const drawField = (label: string, value: string | null | undefined) => {
+      page.drawText(label, { x: margin, y, size: 11, font: boldFont, color: rgb(0.45, 0.45, 0.45) });
+      y = drawWrappedText(page, value || '—', margin + 160, y, font, 11, maxWidth - 170);
+      y -= 8;
+    };
 
-    page.drawText(`Severite : ${plan.vulnerabilite.severite}`, {
-      x: 70, y, size: 12, font
-    });
-    y -= 22;
+    drawField('Titre :', plan.vulnerabilite.titre);
+    drawField('CVE :', plan.vulnerabilite.cveId);
+    drawField('Sévérité :', plan.vulnerabilite.severite);
+    drawField('Score CVSS :', plan.vulnerabilite.scoreCVSS?.toFixed(1));
+    drawField('Priorité :', plan.priorite);
+    drawField('Échéance :', new Date(plan.dateEcheance).toLocaleDateString('fr-FR'));
 
-    if (plan.vulnerabilite.scoreCVSS) {
-      page.drawText(`Score CVSS : ${plan.vulnerabilite.scoreCVSS}`, {
-        x: 70, y, size: 12, font
-      });
-      y -= 22;
-    }
+    const technicien = plan.assigne
+      ? `${plan.assigne.prenom || ''} ${plan.assigne.nom || ''}`.trim() || plan.assigne.email
+      : 'Non assigné';
 
-    // Technicien
-    const technicienName = plan.assigne 
-      ? `${plan.assigne.prenom || ''} ${plan.assigne.nom || ''}`.trim() || plan.assigne.email 
-      : 'Non assigne';
+    const assignateur = plan.createur
+      ? `${plan.createur.prenom || ''} ${plan.createur.nom || ''}`.trim() || plan.createur.email
+      : 'Inconnu';
 
-    page.drawText(`Technicien assigne : ${technicienName}`, {
-      x: 70, y, size: 12, font,
-    });
-    y -= 22;
-
-    page.drawText(
-      `Priorite : ${plan.priorite}`,
-      { x: 70, y, size: 12, font }
-    );
-    y -= 22;
-
-    page.drawText(
-      `Date d echeance : ${new Date(plan.dateEcheance).toLocaleDateString('fr-FR')}`,
-      { x: 70, y, size: 12, font }
-    );
+    drawField('Assigné à :', technicien);
+    drawField('Assigné par :', assignateur);
 
     if (plan.dateResolution) {
-      y -= 22;
-      page.drawText(
-        `Date de resolution : ${new Date(plan.dateResolution).toLocaleDateString('fr-FR')}`,
-        { x: 70, y, size: 12, font }
-      );
+      drawField('Résolu le :', new Date(plan.dateResolution).toLocaleDateString('fr-FR'));
     }
 
-    // Resultat
-    y -= 45;
-    page.drawText("RESULTAT DE LA CORRECTION", {
-      x: 50, y, size: 16, font: boldFont,
-    });
-    y -= 8;
-    page.drawLine({
-      start: { x: 50, y }, end: { x: 545, y },
-      thickness: 1, color: rgb(0.8, 0.8, 0.8)
-    });
-    y -= 28;
+    y -= 25;
 
-    if (plan.commentaire) {
-      page.drawText("Commentaire du technicien :", {
-        x: 70, y, size: 12, font: boldFont,
+    // Section Commentaire (corrigé)
+    page.drawText('COMMENTAIRE D\'ASSIGNATION', {
+      x: margin,
+      y,
+      size: 16,
+      font: boldFont,
+      color: rgb(0.1, 0.1, 0.1),
+    });
+    y -= 25;
+
+    const cleanComment = sanitizeText(plan.commentaire);
+
+    if (cleanComment) {
+      page.drawText(`Commentaire laissé par ${assignateur} :`, {
+        x: margin,
+        y,
+        size: 12,
+        font: boldFont,
+        color: rgb(0.3, 0.5, 0.8),
       });
       y -= 22;
-
-      const lines = plan.commentaire.split('\n');
-      for (const line of lines) {
-        if (y < 100) break;
-        page.drawText(line.trim(), { x: 85, y, size: 11, font, color: rgb(0.2, 0.2, 0.2) });
-        y -= 18;
-      }
+      y = drawWrappedText(page, cleanComment, margin, y, font, 10.5, maxWidth);
     } else {
-      page.drawText("Aucun commentaire.", {
-        x: 70, y, size: 11, font, color: rgb(0.5, 0.5, 0.5)
+      page.drawText('Aucun commentaire n\'a été laissé lors de l\'assignation.', {
+        x: margin,
+        y,
+        size: 11,
+        font,
+        color: rgb(0.5, 0.5, 0.5),
       });
     }
 
-    // Pied de page
+    // Footer
     page.drawText(
-      `Document genere le ${new Date().toISOString().slice(0, 10)}`,
-      { x: 50, y: 30, size: 9, font, color: rgb(0.6, 0.6, 0.6) }
+      `Document généré le ${new Date().toLocaleDateString('fr-FR')} • Security Platform`,
+      { x: margin, y: 35, size: 9, font, color: rgb(0.5, 0.5, 0.5) }
     );
 
-    const pdfBytes  = await pdfDoc.save();
+    const pdfBytes = await pdfDoc.save();
     const pdfBuffer = Buffer.from(pdfBytes);
 
     return new NextResponse(pdfBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="Assignation_${
-          plan.vulnerabilite.titre.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30)
-        }.pdf"`,
+        'Content-Disposition': `attachment; filename="Assignation_${plan.vulnerabilite.titre
+          .replace(/[^a-zA-Z0-9]/g, '_')
+          .substring(0, 40)}.pdf"`,
       },
     });
-
   } catch (error: any) {
-    console.error("Erreur generation rapport assignation:", error);
-    return NextResponse.json({ error: "Erreur lors de la generation du rapport" }, { status: 500 });
+    console.error('Erreur génération rapport assignation:', error);
+    return NextResponse.json(
+      { error: 'Erreur lors de la génération du rapport PDF' },
+      { status: 500 }
+    );
   }
 }

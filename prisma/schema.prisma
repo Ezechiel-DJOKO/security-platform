@@ -34,7 +34,7 @@ model Actif {
   adresseIP    String?
   hostname     String?
   type         TypeActif
-  criticite    NiveauCriticite
+  criticite    NiveauCriticite?
   localisation String?
   dernierScan  DateTime?
   deletedAt    DateTime?
