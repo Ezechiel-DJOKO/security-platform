@@ -44,7 +44,7 @@ export default function Home() {
 
           <p className="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
             Une solution complète de gestion des vulnérabilités, scans automatisés 
-            et conformité réglementaire pour renforcer la cybersécurité de l&apos;État.
+            et conformité réglementaire pour renforcer la sécurité de l&apos;État.
           </p>
 
           <div className="flex items-center justify-center gap-4 pt-2">
@@ -53,7 +53,7 @@ export default function Home() {
               className="flex items-center gap-3 px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white text-base font-semibold rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-blue-900/30"
             >
               Accéder à la plateforme
-              <ArrowRight className="w-5 h-5" />
+              
             </Link>
           </div>
 
@@ -79,7 +79,7 @@ export default function Home() {
       <section className="max-w-7xl mx-auto px-6 pb-10">
         <div className="text-center mb-8">
           <h2 className="text-2xl md:text-3xl font-semibold text-white">Fonctionnalités principales</h2>
-          <p className="text-slate-400 text-sm mt-2">Une plateforme pensée pour la cybersécurité gouvernementale</p>
+          <p className="text-slate-400 text-sm mt-2">Une plateforme pensée pour la sécurité gouvernementale</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

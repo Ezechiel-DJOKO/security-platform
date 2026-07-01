@@ -1,8 +1,9 @@
+// src/app/api/plans-correction/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { StatutPlan, Severite, Priorite } from '@prisma/client';
+import { StatutPlan, StatutVulnerabilite, Severite, Priorite } from '@prisma/client';
 
 // ============================================================
 // CONFIG DÉLAIS
@@ -29,7 +30,7 @@ function calculerDateEcheance(severite: Severite, dateDepart?: Date): Date {
 }
 
 // ============================================================
-// GET — Liste des plans (Version Finale)
+// GET — Liste des plans
 // ============================================================
 export async function GET(request: NextRequest) {
   try {
@@ -40,101 +41,78 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const mesPlans = searchParams.get('mesPlans') === 'true';
+    const mesTaches = searchParams.get('mesTaches') === 'true';   // ← Nouveau
     const severite = searchParams.get('severite');
     const statut = searchParams.get('statut');
-    const urgence = searchParams.get('urgence');
 
     let whereClause: any = {
       vulnerabilite: { deletedAt: null }
     };
 
-    if (mesPlans) {
+    // Gestion des filtres "Mes Plans" et "Mes Tâches"
+    if (mesPlans || mesTaches) {
       if (session.user.role === 'TECHNICIEN') {
         whereClause.assigneA = session.user.id;
-      } else if (session.user.role === 'AUDITEUR') {
+
+        // Pour Mes Tâches : on ne montre que les tâches actives
+        if (mesTaches) {
+          whereClause.statut = {
+            in: [StatutPlan.A_FAIRE, StatutPlan.EN_COURS]
+          };
+        }
+      } 
+      else if (['ADMIN', 'AUDITEUR', 'SUPERVISEUR'].includes(session.user.role)) {
         whereClause.createdBy = session.user.id;
       }
     }
 
-    if (severite) {
-      whereClause.vulnerabilite = { ...whereClause.vulnerabilite, severite };
-    }
-    if (statut) {
-      whereClause.statut = statut;
-    }
+    if (severite) whereClause.vulnerabilite.severite = severite;
+    if (statut) whereClause.statut = statut;
 
     const plans = await prisma.planCorrection.findMany({
       where: whereClause,
       include: {
         vulnerabilite: {
-          select: { id: true, titre: true, severite: true, statut: true }
+          select: { 
+            id: true, 
+            titre: true, 
+            severite: true, 
+            statut: true,
+            scoreCVSS: true 
+          }
         },
         assigne: {
           select: { id: true, nom: true, prenom: true, email: true }
         },
         createur: {
-          select: { id: true, nom: true, prenom: true }
+          select: { id: true, nom: true, prenom: true, email: true }
         },
       },
       orderBy: { dateEcheance: 'asc' },
     });
 
-    // Enrichissement
-    const enriched = plans.map(plan => {
-      const dateEcheance = new Date(plan.dateEcheance);
-      const jours = Math.ceil((dateEcheance.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-      const estEnRetard = !['TERMINE', 'VERIFIE', 'ANNULE'].includes(plan.statut) && jours < 0;
-
-      let urgenceCalc = 'NORMAL';
-      if (estEnRetard) urgenceCalc = 'EN_RETARD';
-      else if (jours <= 2) urgenceCalc = 'URGENT';
-
-      return {
-        ...plan,
-        joursRestants: jours,
-        estEnRetard,
-        urgence: urgenceCalc,
-        statutAffiche: estEnRetard ? 'EN_RETARD' : plan.statut,
-      };
-    });
-
-    // Filtrage par urgence / statut
-    const filtered = urgence
-      ? enriched.filter(p => 
-          (urgence === 'EN_RETARD' && p.estEnRetard) || 
-          p.urgence === urgence
-        )
-      : enriched;
-
-    // Statistiques
-    const stats = {
-      total: filtered.length,
-      enRetard: enriched.filter(p => p.estEnRetard).length,
-      urgent: enriched.filter(p => p.urgence === 'URGENT').length,
-      aFaire: enriched.filter(p => p.statut === 'A_FAIRE').length,
-      enCours: enriched.filter(p => p.statut === 'EN_COURS').length,
-      termine: enriched.filter(p => p.statut === 'TERMINE').length,
-      verifie: enriched.filter(p => p.statut === 'VERIFIE').length,
-    };
+    const enriched = plans.map(plan => ({
+      ...plan,
+      technicien: plan.assigne
+        ? `${plan.assigne.prenom || ''} ${plan.assigne.nom || ''}`.trim()
+        : 'Non assigné',
+      auditeur: plan.createur
+        ? `${plan.createur.prenom || ''} ${plan.createur.nom || ''}`.trim()
+        : 'Inconnu',
+    }));
 
     return NextResponse.json({
       success: true,
-      data: filtered,
-      stats,
-      count: filtered.length,
+      data: enriched,
     });
-
   } catch (error: any) {
     console.error("Erreur GET /api/plans-correction:", error);
-    return NextResponse.json({
-      success: false,
-      error: "Erreur serveur"
-    }, { status: 500 });
+    return NextResponse.json({ success: false, error: "Erreur serveur" }, { status: 500 });
   }
 }
 
 // ============================================================
-// POST 
+// POST — Création de plans
 // ============================================================
 export async function POST(request: NextRequest) {
   try {
@@ -164,33 +142,29 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        const assigneA = body.assigneA || session.user.id;
-        const dateEcheance = body.dateEcheance
-          ? new Date(body.dateEcheance)
-          : calculerDateEcheance(vuln.severite as Severite, vuln.dateDecouverte);
-
-        const priorite = body.priorite ?? PRIORITE_MAP[vuln.severite as Severite];
-
         const plan = await prisma.$transaction(async (tx) => {
           const p = await tx.planCorrection.create({
             data: {
               idVulnerabilite: idVuln,
-              assigneA,
-              priorite,
-              dateEcheance,
+              assigneA: body.assigneA || null,
+              priorite: body.priorite ?? PRIORITE_MAP[vuln.severite as Severite],
+              dateEcheance: body.dateEcheance 
+                ? new Date(body.dateEcheance) 
+                : calculerDateEcheance(vuln.severite as Severite),
               statut: StatutPlan.A_FAIRE,
               commentaire: body.commentaire ?? null,
               createdBy: session.user.id,
             },
             include: {
-              vulnerabilite: { select: { titre: true, severite: true } },
-              assigne: { select: { nom: true, prenom: true, email: true } },
+              vulnerabilite: true,
+              assigne: true,
+              createur: true,
             }
           });
 
           await tx.vulnerabilite.update({
             where: { id: idVuln },
-            data: { statut: 'EN_COURS' },
+            data: { statut: StatutVulnerabilite.EN_COURS },
           });
 
           return p;
@@ -208,7 +182,6 @@ export async function POST(request: NextRequest) {
       data: plansCrees,
       erreurs: erreurs.length > 0 ? erreurs : undefined,
     });
-
   } catch (error: any) {
     console.error("Erreur POST /api/plans-correction:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

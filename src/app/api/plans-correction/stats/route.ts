@@ -1,3 +1,4 @@
+// src/app/api/plans-correction/stats/route.ts   (ou où se trouve ce fichier)
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { StatutPlan } from '@prisma/client';
@@ -6,7 +7,6 @@ export async function GET() {
   try {
     const now = new Date();
 
-    // Comptage de tous les plans par statut
     const [
       total,
       aFaire,
@@ -16,37 +16,57 @@ export async function GET() {
       annule,
       enRetard,
     ] = await Promise.all([
-      // Total général
-      prisma.planCorrection.count(),
+      // Total général (seulement les plans actifs)
+      prisma.planCorrection.count({
+        where: {
+          vulnerabilite: { deletedAt: null }
+        }
+      }),
 
       // A_FAIRE
       prisma.planCorrection.count({
-        where: { statut: StatutPlan.A_FAIRE }
+        where: { 
+          statut: StatutPlan.A_FAIRE,
+          vulnerabilite: { deletedAt: null }
+        }
       }),
 
       // EN_COURS
       prisma.planCorrection.count({
-        where: { statut: StatutPlan.EN_COURS }
+        where: { 
+          statut: StatutPlan.EN_COURS,
+          vulnerabilite: { deletedAt: null }
+        }
       }),
 
       // TERMINE
       prisma.planCorrection.count({
-        where: { statut: StatutPlan.TERMINE }
+        where: { 
+          statut: StatutPlan.TERMINE,
+          vulnerabilite: { deletedAt: null }
+        }
       }),
 
       // VERIFIE
       prisma.planCorrection.count({
-        where: { statut: StatutPlan.VERIFIE }
+        where: { 
+          statut: StatutPlan.VERIFIE,
+          vulnerabilite: { deletedAt: null }
+        }
       }),
 
       // ANNULE
       prisma.planCorrection.count({
-        where: { statut: StatutPlan.ANNULE }
+        where: { 
+          statut: StatutPlan.ANNULE,
+          vulnerabilite: { deletedAt: null }
+        }
       }),
 
-      // EN_RETARD : Plans non terminés dont la date d'échéance est dépassée
+      // EN_RETARD : Plans non terminés/vérifiés/annulés avec date dépassée
       prisma.planCorrection.count({
         where: {
+          vulnerabilite: { deletedAt: null },
           statut: {
             notIn: [StatutPlan.TERMINE, StatutPlan.VERIFIE, StatutPlan.ANNULE]
           },
@@ -68,7 +88,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Erreur lors du calcul des stats des plans de correction :", error);
-    
     return NextResponse.json({
       TOTAL: 0,
       A_FAIRE: 0,

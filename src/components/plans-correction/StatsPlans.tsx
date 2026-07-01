@@ -7,11 +7,11 @@ import {
 interface Stats {
   total: number;
   enRetard: number;
-  urgent: number;
+  urgent?: number;
   aFaire: number;
   enCours: number;
   termine: number;
-  verifie?: number;   // Ajout
+  verifie: number;
 }
 
 interface StatsPlansProps {
@@ -29,30 +29,44 @@ const STAT_CARDS = [
 
 export default function StatsPlans({ refreshTrigger = 0 }: StatsPlansProps) {
   const [stats, setStats] = useState<Stats>({
-    total: 0, enRetard: 0, urgent: 0, aFaire: 0, enCours: 0, termine: 0, verifie: 0
+    total: 0,
+    enRetard: 0,
+    urgent: 0,
+    aFaire: 0,
+    enCours: 0,
+    termine: 0,
+    verifie: 0,
   });
+
   const [loading, setLoading] = useState(true);
 
   const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/plans-correction');
+      
+      // ✅ Correction ici
+      const res = await fetch('/api/plans-correction/stats', {
+        cache: 'no-store',
+        next: { revalidate: 0 },
+      });
+
       if (res.ok) {
-        const result = await res.json();
-        const backendStats = result.stats || {};
+        const data = await res.json();
 
         setStats({
-          total: backendStats.total || 0,
-          enRetard: backendStats.enRetard || 0,
-          urgent: backendStats.urgent || 0,
-          aFaire: backendStats.aFaire || 0,
-          enCours: backendStats.enCours || 0,
-          termine: backendStats.termine || 0,
-          verifie: backendStats.verifie || 0,   // ← Ajout
+          total: data.TOTAL || 0,
+          aFaire: data.A_FAIRE || 0,
+          enCours: data.EN_COURS || 0,
+          termine: data.TERMINE || 0,
+          verifie: data.VERIFIE || 0,
+          enRetard: data.EN_RETARD || 0,
+          urgent: 0, // si tu veux l'utiliser plus tard
         });
+      } else {
+        console.error("Erreur HTTP:", res.status);
       }
     } catch (error) {
-      console.error("Erreur stats:", error);
+      console.error("Erreur stats plans:", error);
     } finally {
       setLoading(false);
     }
@@ -63,7 +77,13 @@ export default function StatsPlans({ refreshTrigger = 0 }: StatsPlansProps) {
   }, [fetchStats, refreshTrigger]);
 
   if (loading) {
-    return <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 animate-pulse">...</div>;
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 animate-pulse">
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 h-32" />
+        ))}
+      </div>
+    );
   }
 
   return (
@@ -71,8 +91,12 @@ export default function StatsPlans({ refreshTrigger = 0 }: StatsPlansProps) {
       {STAT_CARDS.map((card) => {
         const Icon = card.icon;
         const value = stats[card.key as keyof Stats] ?? 0;
+
         return (
-          <div key={card.key} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-all">
+          <div 
+            key={card.key} 
+            className="bg-slate-900 border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-all"
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-slate-400 text-sm">{card.label}</p>
